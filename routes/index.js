@@ -10,6 +10,7 @@ router.get("/", function (req, res, next) {
 
 router.get("/tree", neo4jService.readUniversalTree);
 router.get("/search/:query", neo4jService.searchNodes);
+router.get("/nodes/:idsString", neo4jService.getNodesById); //a string of UUIDs separated by ,
 router.get("/pathStart/:startNode/pathEnd/:endNode", neo4jService.readPath);
 
 router.post("/tree", neo4jService.mergeTree);
