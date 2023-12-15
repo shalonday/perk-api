@@ -3,6 +3,10 @@ require("dotenv").config();
 
 let driver;
 
+console.log(process.env.NEO4J_URI);
+console.log(process.env.NEO4J_USERNAME);
+console.log(process.env.NEO4J_PASSWORD);
+
 async function initDriver() {
   try {
     driver = await neo4j.driver(
@@ -11,8 +15,8 @@ async function initDriver() {
     );
     await driver.verifyAuthentication;
     console.log("connection to server established");
-  } catch {
-    console.error("connection not established with database");
+  } catch (err) {
+    console.error(err);
   }
 }
 
