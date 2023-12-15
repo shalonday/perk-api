@@ -2,7 +2,7 @@ var express = require("express");
 var router = express.Router();
 var cors = require("cors");
 
-const neo4jService = require("../services/neo4j");
+const neo4jService = require("../services/service");
 
 /* GET home page. */
 router.get("/", function (req, res, next) {

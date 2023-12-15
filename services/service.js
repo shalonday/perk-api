@@ -3,8 +3,6 @@ require("dotenv").config();
 
 let driver;
 
-console.log(process.env);
-
 async function initDriver() {
   try {
     driver = await neo4j.driver(
