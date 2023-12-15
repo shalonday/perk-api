@@ -24,6 +24,8 @@ app.use(express.static(path.join(__dirname, "public")));
 
 const neo4jService = require("./services/service");
 
+app.use(cors());
+
 app.get("/tree", cors(), neo4jService.readUniversalTree);
 app.get("/search/:query", cors(), neo4jService.searchNodes);
 app.get("/nodes/:idsString", cors(), neo4jService.getNodesById); //a string of UUIDs separated by ,
