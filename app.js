@@ -10,12 +10,8 @@ const RateLimit = require("express-rate-limit");
 
 var app = express();
 
-// view engine setup
-app.set("views", path.join(__dirname, "views"));
-app.set("view engine", "jade");
-
 app.use(compression());
-// app.use(helmet());
+app.use(helmet());
 app.use(logger("dev"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
@@ -23,8 +19,6 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
 
 const neo4jService = require("./services/service");
-
-app.use(cors());
 
 app.get("/tree", cors(), neo4jService.readUniversalTree);
 app.get("/search/:query", cors(), neo4jService.searchNodes);
