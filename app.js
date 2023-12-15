@@ -4,6 +4,9 @@ var path = require("path");
 var cookieParser = require("cookie-parser");
 var logger = require("morgan");
 const cors = require("cors");
+const helmet = require("helmet");
+const compression = require("compression");
+const RateLimit = require("express-rate-limit");
 
 var indexRouter = require("./routes/index");
 var usersRouter = require("./routes/users");
@@ -14,7 +17,8 @@ var app = express();
 app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "jade");
 
-app.use(cors());
+app.use(compression());
+app.use(helmet());
 app.use(logger("dev"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
@@ -23,6 +27,14 @@ app.use(express.static(path.join(__dirname, "public")));
 
 app.use("/", indexRouter);
 app.use("/users", usersRouter);
+
+// Set up rate limiter: maximum of twenty requests per minute
+const limiter = RateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 20,
+});
+// Apply rate limiter to all requests
+app.use(limiter);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {

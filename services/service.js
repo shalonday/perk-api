@@ -11,8 +11,8 @@ async function initDriver() {
     );
     await driver.verifyAuthentication;
     console.log("connection to server established");
-  } catch {
-    console.error("connection not established with database");
+  } catch (err) {
+    console.error(err);
   }
 }
 
