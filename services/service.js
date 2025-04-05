@@ -38,40 +38,32 @@ async function mergeTree(req, res, next) {
 async function readUniversalTree(req, res, next) {
   const session = driver.session();
 
-  const getModulesTransaction = await session.executeRead((tx) => {
-    return tx.run("MATCH (m:Module) RETURN m");
+  const getSkillsTransaction  = await session.executeRead((tx) => {
+    return tx.run("MATCH (s:Skill) RETURN s");
   });
-  let modules = getModulesTransaction.records.map(
-    //used "let" because we mutate it in the populateModulesWithResources function
-    (record) => record.get("m").properties
-  );
 
-  const getModuleResourceRelationshipTransaction = await session.executeRead(
-    (tx) => {
-      return tx.run("MATCH (m:Module)-->(r:Resource) RETURN m,r");
-    }
+  const skills = getSkillsTransaction.records.map(
+    (record) => record.get("s").properties
   );
-  populateModulesWithResources(
-    modules,
-    getModuleResourceRelationshipTransaction
-  );
-
-  const getSkillNodesTransaction = await session.executeRead((tx) => {
-    return tx.run("MATCH (n:Skill) RETURN n");
+  
+  const getURLsTransaction = await session.executeRead((tx) => {
+    return tx.run("MATCH (u:URL) RETURN u");
   });
-  let skillNodes = getSkillNodesTransaction.records.map(
-    (record) => record.get("n").properties
+
+  const urls = getURLsTransaction.records.map(
+    (record) => record.get("u").properties
   );
 
   const getPrerequisiteLinksTransaction = await session.executeRead((tx) => {
     return tx.run(
-      "MATCH (s:Skill)-[r:IS_PREREQUISITE_TO]->(m:Module) RETURN s,r,m"
+      "MATCH (s:Skill)-[r:IS_PREREQUISITE_TO]->(u:URL) RETURN s,r,u"
     );
   });
+
   let prereqLinks = getPrerequisiteLinksTransaction.records.map((record) => {
     const link = {
       source: record.get("s").properties.id,
-      target: record.get("m").properties.id,
+      target: record.get("u").properties.id,
       id: record.get("r").properties.id,
     };
 
@@ -79,11 +71,12 @@ async function readUniversalTree(req, res, next) {
   });
 
   const getTeachesLinksTransaction = await session.executeRead((tx) => {
-    return tx.run("MATCH (m:Module)-[r:TEACHES]->(s:Skill) RETURN m,r,s");
+    return tx.run("MATCH (u:URL)-[r:TEACHES]->(s:Skill) RETURN u,r,s");
   });
+
   let teachesLinks = getTeachesLinksTransaction.records.map((record) => {
     const link = {
-      source: record.get("m").properties.id,
+      source: record.get("u").properties.id,
       target: record.get("s").properties.id,
       id: record.get("r").properties.id,
     };
@@ -91,7 +84,7 @@ async function readUniversalTree(req, res, next) {
     return link;
   });
 
-  const nodes = modules.concat(skillNodes);
+  const nodes = urls.concat(skills);
   const links = prereqLinks.concat(teachesLinks);
   res.json({ nodes, links });
 
