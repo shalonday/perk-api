@@ -45,6 +45,7 @@ async function readUniversalTree(req, res, next) {
   const skills = getSkillsTransaction.records.map(
     (record) => record.get("s").properties
   );
+  skills.map(skill => skill.type = "skill");
   
   const getURLsTransaction = await session.executeRead((tx) => {
     return tx.run("MATCH (u:URL) RETURN u");
@@ -53,6 +54,7 @@ async function readUniversalTree(req, res, next) {
   const urls = getURLsTransaction.records.map(
     (record) => record.get("u").properties
   );
+  urls.map(url => url.type = "url");
 
   const getPrerequisiteLinksTransaction = await session.executeRead((tx) => {
     return tx.run(
