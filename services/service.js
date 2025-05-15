@@ -366,3 +366,25 @@ module.exports = {
   getNodesById,
   readPath,
 };
+
+async function createUser(req, res, next) {
+  const session = driver.session();
+  const user = req.body;
+
+  const transactionSummary = createNode({label: "User", properties: user});
+
+  session.close();
+  console.log("session closed");
+}
+
+async function createNode({label, properties}){
+  const { summary } = await session.executeWrite((tx) => {
+    // write query based on label and properties: return tx.run();
+  });
+
+  return summary;
+}
+
+async function createRelationship({type, properties}){
+
+}
