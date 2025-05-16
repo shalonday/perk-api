@@ -38,7 +38,7 @@ app.post(
 app.post(
   "/user",
   cors({ origin: "https://www.webbrainproject.org" }),
-  neo4jService.createUser()
+  neo4jService.createUser
 );
 
 // Set up rate limiter: maximum of twenty requests per minute
