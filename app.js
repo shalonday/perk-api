@@ -41,6 +41,8 @@ app.post(
   neo4jService.createUser
 );
 
+app.set('trust proxy', 1);
+
 // Set up rate limiter: maximum of twenty requests per minute
 const limiter = RateLimit({
   windowMs: 1 * 60 * 1000,
