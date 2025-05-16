@@ -359,14 +359,6 @@ function buildQueryForMatchingNodesById(array) {
   return queryString;
 }
 
-module.exports = {
-  mergeTree,
-  readUniversalTree,
-  searchNodes,
-  getNodesById,
-  readPath,
-};
-
 async function createUser(req, res, next) {
   const session = driver.session();
   const user = req.body;
@@ -409,3 +401,12 @@ async function createUniqueNodeQuery({label, properties, idPropertyName, idPrope
 async function createRelationship({type, properties}){
 
 }
+
+module.exports = {
+  mergeTree,
+  readUniversalTree,
+  searchNodes,
+  getNodesById,
+  readPath,
+  createUser
+};
