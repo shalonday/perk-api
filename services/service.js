@@ -359,20 +359,12 @@ function buildQueryForMatchingNodesById(array) {
   return queryString;
 }
 
-module.exports = {
-  mergeTree,
-  readUniversalTree,
-  searchNodes,
-  getNodesById,
-  readPath,
-};
-
 async function createUser(req, res, next) {
   const session = driver.session();
   const user = req.body;
   console.log(user)
 
-  let { records, summary } = createUniqueNodeQuery({label: "User", properties: user, idPropertyName: "email", idPropertyValue: user.email});
+  let { records, summary } = await createUniqueNodeQuery({label: "User", properties: user, idPropertyName: "email", idPropertyValue: user.email});
 
   console.log(summary)
   console.log(records)
@@ -409,3 +401,12 @@ async function createUniqueNodeQuery({label, properties, idPropertyName, idPrope
 async function createRelationship({type, properties}){
 
 }
+
+module.exports = {
+  mergeTree,
+  readUniversalTree,
+  searchNodes,
+  getNodesById,
+  readPath,
+  createUser
+};
