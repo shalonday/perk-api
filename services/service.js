@@ -359,10 +359,54 @@ function buildQueryForMatchingNodesById(array) {
   return queryString;
 }
 
+async function createUser(req, res, next) {
+  const session = driver.session();
+  const user = req.body;
+  console.log(user)
+
+  let { records, summary } = await createUniqueNodeQuery({label: "User", properties: user, idPropertyName: "email", idPropertyValue: user.email});
+
+  console.log(summary)
+  console.log(records)
+  session.close();
+  console.log("session closed");
+}
+
+/**
+ * General function for creating nodes that are supposed to be unique
+ * @param {string} label - The label of the node
+ * @param {object} properties - properties to be assigned to the node
+ * @param {string} idPropertyName - The name of the property that identifies this particular node label as unique. 
+ * @param {string} idPropertyValue - The STRING value of the property with name idPropertyName
+ */
+async function createUniqueNodeQuery({label, properties, idPropertyName, idPropertyValue}){
+
+  // write query based on label and properties
+  let { records, summary } = await driver.executeQuery( `
+      // Check if the node already exists
+      CALL apoc.util.validate(
+      EXISTS { MATCH (n:${label} {${idPropertyName}: '${idPropertyValue}'}) RETURN n },
+      '${label} with ${idPropertyName}: ${idPropertyValue} already exists',
+      []
+      )
+      
+      // If it doesn't exist, create it
+      CREATE (n:${label})
+      SET n = $properties
+  `,{properties: properties});
+
+  return {records, summary}
+}
+
+async function createRelationship({type, properties}){
+
+}
+
 module.exports = {
   mergeTree,
   readUniversalTree,
   searchNodes,
   getNodesById,
   readPath,
+  createUser
 };
