@@ -368,6 +368,7 @@ async function createUser(req, res, next) {
 
   console.log(summary)
   console.log(records)
+  res.json({records, summary});
   session.close();
   console.log("session closed");
 }
