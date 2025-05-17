@@ -10,6 +10,12 @@ const RateLimit = require("express-rate-limit");
 
 var app = express();
 
+app.use(
+  cors({
+    origin: "https://www.webbrainproject.org",
+    methods: ["GET", "POST", "OPTIONS"]
+  })
+);
 app.use(compression());
 app.use(helmet());
 app.use(logger("dev"));
