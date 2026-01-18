@@ -7,7 +7,7 @@ async function initDriver() {
   try {
     driver = await neo4j.driver(
       process.env.NEO4J_URI,
-      neo4j.auth.basic(process.env.NEO4J_USERNAME, process.env.NEO4J_PASSWORD)
+      neo4j.auth.basic(process.env.NEO4J_USERNAME, process.env.NEO4J_PASSWORD),
     );
     await driver.verifyAuthentication;
     console.log("connection to server established");
@@ -38,27 +38,27 @@ async function mergeTree(req, res, next) {
 async function readUniversalTree(req, res, next) {
   const session = driver.session();
 
-  const getSkillsTransaction  = await session.executeRead((tx) => {
+  const getSkillsTransaction = await session.executeRead((tx) => {
     return tx.run("MATCH (s:Skill) RETURN s");
   });
 
   const skills = getSkillsTransaction.records.map(
-    (record) => record.get("s").properties
+    (record) => record.get("s").properties,
   );
-  skills.map(skill => skill.type = "skill");
-  
+  skills.map((skill) => (skill.type = "skill"));
+
   const getURLsTransaction = await session.executeRead((tx) => {
     return tx.run("MATCH (u:URL) RETURN u");
   });
 
   const urls = getURLsTransaction.records.map(
-    (record) => record.get("u").properties
+    (record) => record.get("u").properties,
   );
-  urls.map(url => url.type = "url");
+  urls.map((url) => (url.type = "url"));
 
   const getPrerequisiteLinksTransaction = await session.executeRead((tx) => {
     return tx.run(
-      "MATCH (s:Skill)-[r:IS_PREREQUISITE_TO]->(u:URL) RETURN s,r,u"
+      "MATCH (s:Skill)-[r:IS_PREREQUISITE_TO]->(u:URL) RETURN s,r,u",
     );
   });
 
@@ -103,22 +103,22 @@ async function searchNodes(req, res, next) {
 
   const skillNodeResults = await session.executeRead((tx) => {
     return tx.run(
-      `MATCH (s:Skill) where toLower(s.title) CONTAINS "${query.toLowerCase()}" OR toLower(s.description) CONTAINS "${query.toLowerCase()}" RETURN s`
+      `MATCH (s:Skill) where toLower(s.title) CONTAINS "${query.toLowerCase()}" OR toLower(s.description) CONTAINS "${query.toLowerCase()}" RETURN s`,
     );
   });
 
   const moduleNodeResults = await session.executeRead((tx) => {
     return tx.run(
-      `MATCH (m:Module) where toLower(m.title) CONTAINS "${query.toLowerCase()}" OR toLower(m.learnText) CONTAINS "${query.toLowerCase()}" OR toLower(m.practiceText) CONTAINS "${query.toLowerCase()}" RETURN m`
+      `MATCH (m:Module) where toLower(m.title) CONTAINS "${query.toLowerCase()}" OR toLower(m.learnText) CONTAINS "${query.toLowerCase()}" OR toLower(m.practiceText) CONTAINS "${query.toLowerCase()}" RETURN m`,
     );
   });
 
   const skills = skillNodeResults.records.map(
-    (record) => record.get("s").properties
+    (record) => record.get("s").properties,
   );
   const modules = moduleNodeResults.records.map(
     //used "let" because we mutate it in the populateModulesWithResources function
-    (record) => record.get("m").properties
+    (record) => record.get("m").properties,
   );
 
   const nodes = skills.concat(modules);
@@ -133,7 +133,7 @@ async function getNodesById(req, res, next) {
   const session = driver.session();
 
   const getNodesTx = await session.executeRead((tx) =>
-    tx.run(buildQueryForMatchingNodesById(idsArray))
+    tx.run(buildQueryForMatchingNodesById(idsArray)),
   );
 
   const nodes = getNodesTx.records[0]?.map((val) => val.properties); // this looks a bit different than the other ones because there is only one record containing multiple return values.
@@ -142,17 +142,17 @@ async function getNodesById(req, res, next) {
 }
 
 async function readPath(req, res, next) {
-  const startNodeId = req.params.startNode;
-  const endNodeId = req.params.endNode;
+  const startNodeId = req.params.startNodeId;
+  const targetNodeId = req.params.targetNodeId;
 
   const session = driver.session();
 
   const pathTransaction = await session.executeRead((tx) => {
     return tx.run(
-      `MATCH p=({id: "${startNodeId}"})-[*]->({id:"${endNodeId}"})
+      `MATCH p=({id: "${startNodeId}"})-[*]->({id:"${targetNodeId}"})
       UNWIND relationships(p) AS relationshipsWithCopies
       UNWIND nodes(p) AS nodesWithCopies
-      RETURN collect(distinct relationshipsWithCopies) as relationships, collect(distinct nodesWithCopies) as nodes`
+      RETURN collect(distinct relationshipsWithCopies) as relationships, collect(distinct nodesWithCopies) as nodes`,
     );
   });
 
@@ -213,24 +213,24 @@ function buildMergeQuery(nodesArray, linksArray) {
     // The indeces i,j are important to make the variables unique throughout the whole query.
     linksArray.forEach((link, i) => {
       const sourceNode = nodesArray.filter(
-        (node) => node.id === link.source
+        (node) => node.id === link.source,
       )[0];
       const targetNode = nodesArray.filter(
-        (node) => node.id === link.target
+        (node) => node.id === link.target,
       )[0];
       if (sourceNode.type === "skill" && targetNode.type === "module") {
         query += buildQueryForSkillToModuleAndModuleToResourceRelationships(
           sourceNode,
           link.id,
           targetNode,
-          i
+          i,
         );
       } else if (sourceNode.type === "module" && targetNode.type === "skill") {
         query += buildQueryForModuleToSkillRelationships(
           sourceNode,
           link.id,
           targetNode,
-          i
+          i,
         );
       }
     });
@@ -248,16 +248,16 @@ function buildQueryForSkillToModuleAndModuleToResourceRelationships(
   sourceSkillNode,
   linkId,
   targetModuleNode,
-  index
+  index,
 ) {
   let querySegment = "";
   const { resourcesArray, ...restOfModuleNode } = targetModuleNode;
   // MERGE Skill Node and Module node to store them into variables.
   // MERGE Skill -IS_PREREQUISITE_TO-> Module records
   querySegment += `MERGE (ss${index}:Skill {${convertToPropertiesString(
-    sourceSkillNode
+    sourceSkillNode,
   )}}) MERGE (tm${index}:Module {${convertToPropertiesString(
-    restOfModuleNode
+    restOfModuleNode,
   )}}) MERGE (ss${index})-[:IS_PREREQUISITE_TO {id: "${linkId}"}]->(tm${index}) `; //ss for source-skill, and tm for target-module
 
   // MERGE Resource Nodes to get their variables
@@ -267,7 +267,7 @@ function buildQueryForSkillToModuleAndModuleToResourceRelationships(
   if (targetModuleNode.resourcesArray) {
     targetModuleNode.resourcesArray.forEach((resource, j) => {
       querySegment += `MERGE (r${index}_${j}:Resource {${convertToPropertiesString(
-        resource
+        resource,
       )}}) MERGE (tm${index})-[:REFERENCES]->(r${index}_${j}) `;
     });
   }
@@ -279,16 +279,16 @@ function buildQueryForModuleToSkillRelationships(
   sourceModuleNode,
   linkId,
   targetSkillNode,
-  index
+  index,
 ) {
   let querySegment = "";
   const { resourcesArray, ...restOfModuleNode } = sourceModuleNode;
   // MERGE Module and Skill nodes to store them into variables
   // MERGE Module -[:TEACHES]-> Skill records
   querySegment += `MERGE (sm${index}:Module {${convertToPropertiesString(
-    restOfModuleNode
+    restOfModuleNode,
   )}}) MERGE (ts${index}:Skill {${convertToPropertiesString(
-    targetSkillNode
+    targetSkillNode,
   )}}) MERGE (sm${index})-[:TEACHES {id: "${linkId}"}]->(ts${index}) `;
 
   return querySegment;
@@ -301,12 +301,12 @@ function buildQueryForDisconnectedNode(node, index) {
   else if (node.type === "module") {
     // merge Module node and its associated Resource nodes
     querySegment += `MERGE (m${index}:Module {${convertToPropertiesString(
-      node
+      node,
     )}}) `;
 
     node.resourcesArray?.forEach((resource, j) => {
       querySegment += `MERGE (r${index}_${j}:Resource {${convertToPropertiesString(
-        resource
+        resource,
       )}}) MERGE (m${index})-[:REFERENCES]->(r${index}_${j}) `;
     });
   }
@@ -320,7 +320,7 @@ function buildQueryForDisconnectedNode(node, index) {
 // on a neo4j query.
 function convertToPropertiesString(object) {
   const string = Object.keys(object).map(
-    (key) => key + ": " + JSON.stringify(object[key])
+    (key) => key + ": " + JSON.stringify(object[key]),
   );
   return string;
 }
@@ -336,7 +336,7 @@ function populateModulesWithResources(modules, relationshipTransaction) {
   // push doesn't end up doubling the contents.
   relationshipTransaction.records.forEach((record) => {
     let matchedModule = modules.filter(
-      (module) => module.id && module.id === record.get("m").properties.id
+      (module) => module.id && module.id === record.get("m").properties.id,
     )[0];
 
     if (matchedModule)
@@ -362,13 +362,17 @@ function buildQueryForMatchingNodesById(array) {
 async function createUser(req, res, next) {
   const session = driver.session();
   const user = req.body;
-  console.log(user)
 
-  let { records, summary } = await createUniqueNodeQuery({label: "User", properties: user, idPropertyName: "email", idPropertyValue: user.email});
+  let { records, summary } = await createUniqueNodeQuery({
+    label: "User",
+    properties: user,
+    idPropertyName: "email",
+    idPropertyValue: user.email,
+  });
 
-  console.log(summary)
-  console.log(records)
-  res.json({records, summary});
+  console.log(summary);
+  console.log(records);
+  res.json({ records, summary });
   session.close();
   console.log("session closed");
 }
@@ -377,13 +381,18 @@ async function createUser(req, res, next) {
  * General function for creating nodes that are supposed to be unique
  * @param {string} label - The label of the node
  * @param {object} properties - properties to be assigned to the node
- * @param {string} idPropertyName - The name of the property that identifies this particular node label as unique. 
+ * @param {string} idPropertyName - The name of the property that identifies this particular node label as unique.
  * @param {string} idPropertyValue - The STRING value of the property with name idPropertyName
  */
-async function createUniqueNodeQuery({label, properties, idPropertyName, idPropertyValue}){
-
+async function createUniqueNodeQuery({
+  label,
+  properties,
+  idPropertyName,
+  idPropertyValue,
+}) {
   // write query based on label and properties
-  let { records, summary } = await driver.executeQuery( `
+  let { records, summary } = await driver.executeQuery(
+    `
       // Check if the node already exists
       CALL apoc.util.validate(
       EXISTS { MATCH (n:${label} {${idPropertyName}: '${idPropertyValue}'}) RETURN n },
@@ -394,14 +403,14 @@ async function createUniqueNodeQuery({label, properties, idPropertyName, idPrope
       // If it doesn't exist, create it
       CREATE (n:${label})
       SET n = $properties
-  `,{properties: properties});
+  `,
+    { properties: properties },
+  );
 
-  return {records, summary}
+  return { records, summary };
 }
 
-async function createRelationship({type, properties}){
-
-}
+async function createRelationship({ type, properties }) {}
 
 module.exports = {
   mergeTree,
@@ -409,5 +418,5 @@ module.exports = {
   searchNodes,
   getNodesById,
   readPath,
-  createUser
+  createUser,
 };
