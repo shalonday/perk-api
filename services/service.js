@@ -158,11 +158,13 @@ async function readPath(req, res, next) {
 
   // the pathTransaction only returns one record, which can be accessed with
   // records[0]. It contains one "nodes" array and one "relationships" array.
-  const nodes = pathTransaction.records[0]
-    .get("nodes")
-    .map((node) => node.properties);
-
   const nodesWithInternalData = pathTransaction.records[0].get("nodes");
+
+  const nodes = nodesWithInternalData.map((node) => {
+    const nodeData = node.properties;
+    nodeData.type = node.labels[0].toLowerCase();
+    return nodeData;
+  });
 
   const links = pathTransaction.records[0].get("relationships").map((link) => {
     return getD3CompatibleLink(link, nodesWithInternalData);
