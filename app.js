@@ -27,20 +27,12 @@ app.use(express.static(path.join(__dirname, "public")));
 const neo4jService = require("./services/service");
 
 app.get("/tree", cors(), neo4jService.readUniversalTree);
-app.get("/search/:query", cors(), neo4jService.searchNodes);
-app.get("/nodes/:idsString", cors(), neo4jService.getNodesById); //a string of UUIDs separated by ,
 app.get("/paths/:startNodeId/:targetNodeId", cors(), neo4jService.readPath);
 
 app.post(
   "/tree",
   cors({ origin: "https://shalonday.github.io" }),
   neo4jService.mergeTree,
-);
-
-app.post(
-  "/user",
-  cors({ origin: "https://www.webbrainproject.org" }),
-  neo4jService.createUser,
 );
 
 app.set("trust proxy", 1);

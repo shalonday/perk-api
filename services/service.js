@@ -94,53 +94,6 @@ async function readUniversalTree(req, res, next) {
   console.log("session closed at read");
 }
 
-// Search skills and modules (not resources just yet; maybe in future) for given query.
-// All searches executed on the tree can only return nodes, not relationships,
-// since relationships don't have properties.
-async function searchNodes(req, res, next) {
-  const query = req.params.query;
-  const session = driver.session();
-
-  const skillNodeResults = await session.executeRead((tx) => {
-    return tx.run(
-      `MATCH (s:Skill) where toLower(s.title) CONTAINS "${query.toLowerCase()}" OR toLower(s.description) CONTAINS "${query.toLowerCase()}" RETURN s`,
-    );
-  });
-
-  const moduleNodeResults = await session.executeRead((tx) => {
-    return tx.run(
-      `MATCH (m:Module) where toLower(m.title) CONTAINS "${query.toLowerCase()}" OR toLower(m.learnText) CONTAINS "${query.toLowerCase()}" OR toLower(m.practiceText) CONTAINS "${query.toLowerCase()}" RETURN m`,
-    );
-  });
-
-  const skills = skillNodeResults.records.map(
-    (record) => record.get("s").properties,
-  );
-  const modules = moduleNodeResults.records.map(
-    //used "let" because we mutate it in the populateModulesWithResources function
-    (record) => record.get("m").properties,
-  );
-
-  const nodes = skills.concat(modules);
-
-  res.json({ nodes: nodes, links: [] });
-  session.close();
-}
-
-async function getNodesById(req, res, next) {
-  const idsString = req.params.idsString; // string of UUIDs separated by a comma
-  const idsArray = idsString.split(",");
-  const session = driver.session();
-
-  const getNodesTx = await session.executeRead((tx) =>
-    tx.run(buildQueryForMatchingNodesById(idsArray)),
-  );
-
-  const nodes = getNodesTx.records[0]?.map((val) => val.properties); // this looks a bit different than the other ones because there is only one record containing multiple return values.
-
-  res.json({ nodes: nodes, links: [] });
-}
-
 async function readPath(req, res, next) {
   const startNodeId = req.params.startNodeId;
   const targetNodeId = req.params.targetNodeId;
@@ -360,59 +313,6 @@ function buildQueryForMatchingNodesById(array) {
   console.log(queryString);
   return queryString;
 }
-
-async function createUser(req, res, next) {
-  const session = driver.session();
-  const user = req.body;
-
-  let { records, summary } = await createUniqueNodeQuery({
-    label: "User",
-    properties: user,
-    idPropertyName: "email",
-    idPropertyValue: user.email,
-  });
-
-  console.log(summary);
-  console.log(records);
-  res.json({ records, summary });
-  session.close();
-  console.log("session closed");
-}
-
-/**
- * General function for creating nodes that are supposed to be unique
- * @param {string} label - The label of the node
- * @param {object} properties - properties to be assigned to the node
- * @param {string} idPropertyName - The name of the property that identifies this particular node label as unique.
- * @param {string} idPropertyValue - The STRING value of the property with name idPropertyName
- */
-async function createUniqueNodeQuery({
-  label,
-  properties,
-  idPropertyName,
-  idPropertyValue,
-}) {
-  // write query based on label and properties
-  let { records, summary } = await driver.executeQuery(
-    `
-      // Check if the node already exists
-      CALL apoc.util.validate(
-      EXISTS { MATCH (n:${label} {${idPropertyName}: '${idPropertyValue}'}) RETURN n },
-      '${label} with ${idPropertyName}: ${idPropertyValue} already exists',
-      []
-      )
-      
-      // If it doesn't exist, create it
-      CREATE (n:${label})
-      SET n = $properties
-  `,
-    { properties: properties },
-  );
-
-  return { records, summary };
-}
-
-async function createRelationship({ type, properties }) {}
 
 module.exports = {
   mergeTree,
