@@ -146,9 +146,18 @@ Most endpoints return:
 
 ### Embedding Strategy
 
-- Store embeddings in `Skill.embedding` and `URL.embedding` properties
-- Use sentence-transformers model (e.g., `all-MiniLM-L6-v2`)
-- Generate via Python/Node.js script (to be implemented)
+- Store embeddings in `Skill.embedding` and `URL.embedding` properties as float arrays
+- Use sentence-transformers model: `Xenova/all-MiniLM-L6-v2` (384-dimensional, optimized)
+- Run the embedding generation script: `npm run generate-embeddings`
+
+**Script Details:**
+
+- Location: `scripts/generateEmbeddings.js`
+- Fetches all nodes without embeddings
+- Generates embeddings using @xenova/transformers (Hugging Face library)
+- Updates nodes in batches of 10 for efficiency
+- Takes ~5-15 minutes depending on node count
+- Reports progress and final coverage statistics
 
 ## Code Style & Conventions
 
@@ -254,11 +263,8 @@ curl http://localhost:3000/paths/E/some-uuid
 
 ### Immediate TODOs
 
-- [ ] Create `.env.example` template
+- [ ] Run embedding generation script: `npm run generate-embeddings`
 - [ ] Fix SQL injection in `searchNodes()`
-- [ ] Move credentials to environment variables
-- [ ] Add chatbot endpoints
-- [ ] Implement embedding generation script
 - [ ] Add proper error handling middleware
 - [ ] Document API with OpenAPI/Swagger
 

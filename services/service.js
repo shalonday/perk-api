@@ -326,8 +326,8 @@ async function chatbotSearch(req, res) {
 
     const session = driver.session();
 
-    // Get all Skills and URLs with embeddings
-    // For now, we'll return empty results until embeddings are loaded into Neo4j
+    // Fetch all nodes with embeddings and compute similarity using dot product
+    // Cypher's dot_product is not available in all versions, so we compute similarity client-side
     const result = await session.executeRead((tx) => {
       return tx.run(
         `
@@ -338,22 +338,55 @@ async function chatbotSearch(req, res) {
           name: n.name,
           type: labels(n)[0]
         } as node,
-        1.0 as similarity
-        LIMIT $limit
+        n.embedding as embedding
         `,
-        { limit },
       );
     });
 
-    const results = result.records.map((record) => ({
-      node: record.get("node"),
-      similarity: record.get("similarity"),
-    }));
-
     session.close();
 
+    // If we have no results, return empty
+    if (result.records.length === 0) {
+      return res.json({
+        results: [],
+        query,
+        timestamp: new Date().toISOString(),
+        note: "No embeddings found. Run 'npm run generate-embeddings' to populate embeddings.",
+      });
+    }
+
+    // Import the embedding generator to get query embedding
+    const { pipeline } = require("@xenova/transformers");
+    const extractor = await pipeline(
+      "feature-extraction",
+      "Xenova/all-MiniLM-L6-v2",
+    );
+
+    // Generate embedding for the query
+    const queryEmbeddingResult = await extractor(query, {
+      pooling: "mean",
+      normalize: true,
+    });
+    const queryEmbedding = Array.from(queryEmbeddingResult.data);
+
+    // Compute cosine similarity with dot product (since embeddings are normalized)
+    const scored = result.records
+      .map((record) => {
+        const nodeEmbedding = record.get("embedding");
+        const similarity = nodeEmbedding.reduce(
+          (sum, val, idx) => sum + val * queryEmbedding[idx],
+          0,
+        );
+        return {
+          node: record.get("node"),
+          similarity,
+        };
+      })
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, limit);
+
     res.json({
-      results,
+      results: scored,
       query,
       timestamp: new Date().toISOString(),
     });
