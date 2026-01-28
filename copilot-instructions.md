@@ -81,17 +81,6 @@ npm install
 npm run devstart    # Uses nodemon for hot reload
 ```
 
-### Production Setup (TODO)
-
-Move credentials to environment variables:
-
-```env
-NEO4J_URI=neo4j+s://87dd45b4.databases.neo4j.io
-NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=<your-password>
-PORT=3000
-```
-
 ## Known Issues & Security Concerns
 
 ### 🚨 Critical Security Issues

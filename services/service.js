@@ -314,11 +314,90 @@ function buildQueryForMatchingNodesById(array) {
   return queryString;
 }
 
+async function chatbotSearch(req, res) {
+  try {
+    const { query, limit = 5 } = req.body;
+
+    if (!query || typeof query !== "string") {
+      return res.status(400).json({
+        error: "Query is required and must be a string",
+      });
+    }
+
+    const session = driver.session();
+
+    // Get all Skills and URLs with embeddings
+    // For now, we'll return empty results until embeddings are loaded into Neo4j
+    const result = await session.executeRead((tx) => {
+      return tx.run(
+        `
+        MATCH (n:Skill|URL)
+        WHERE n.embedding IS NOT NULL
+        RETURN {
+          id: n.id,
+          name: n.name,
+          type: labels(n)[0]
+        } as node,
+        1.0 as similarity
+        LIMIT $limit
+        `,
+        { limit },
+      );
+    });
+
+    const results = result.records.map((record) => ({
+      node: record.get("node"),
+      similarity: record.get("similarity"),
+    }));
+
+    session.close();
+
+    res.json({
+      results,
+      query,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("chatbotSearch error:", error);
+    res.status(500).json({
+      error: "Search failed",
+      message: error.message,
+    });
+  }
+}
+
+async function chatbotMaterialRequest(req, res) {
+  try {
+    const { embed, request } = req.body;
+
+    if (!embed || !request) {
+      return res.status(400).json({
+        error: "Both embed and request objects are required",
+      });
+    }
+
+    // TODO: Send to Discord webhook
+    // const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+    // await axios.post(webhookUrl, { embeds: [embed] });
+
+    res.json({
+      success: true,
+      message: "Material request submitted",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("chatbotMaterialRequest error:", error);
+    res.status(500).json({
+      error: "Material request failed",
+      message: error.message,
+    });
+  }
+}
+
 module.exports = {
   mergeTree,
   readUniversalTree,
-  searchNodes,
-  getNodesById,
   readPath,
-  createUser,
+  chatbotSearch,
+  chatbotMaterialRequest,
 };

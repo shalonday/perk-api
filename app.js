@@ -35,6 +35,14 @@ app.post(
   neo4jService.mergeTree,
 );
 
+// Chatbot endpoints
+app.post("/chatbot/search", cors(), neo4jService.chatbotSearch);
+app.post(
+  "/chatbot/material-request",
+  cors(),
+  neo4jService.chatbotMaterialRequest,
+);
+
 app.set("trust proxy", 1);
 
 // Set up rate limiter: maximum of twenty requests per minute
