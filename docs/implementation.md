@@ -49,6 +49,8 @@ Build the search endpoint that the orchestrator calls when the LLM requests a `s
 - Return result nodes with similarity scores; include optional `metadata` (e.g., `averageTimeMinutes`, `rating`).
 - Optionally return `facets` for future filtering UI (e.g., difficulty counts, tag counts).
 - Use read-only DB credentials (see `SECURITY.md`).
+- Open Neo4j sessions with explicit read intent: `driver.session({ defaultAccessMode: neo4j.session.READ })`.
+- Use `session.readTransaction()` for all queries.
 
 **Tests:**
 
@@ -102,7 +104,9 @@ Build the path-finding endpoint that the **client** (not the LLM) calls when a u
 - Return multiple candidate paths ranked by the selected strategy.
 - Include per-path metrics (`totalEstimatedTimeMinutes`, `averageRating`) and metadata (`rank`, `preferred`, `explanation`).
 - Explain why each path was ranked (e.g., `"explanation": "shortest_time"` or `"explanation": "only_available_path"`).
-- Use read-only DB credentials.
+- Use read-only DB credentials (environment variable: `NEO4J_READ_USER`).
+- Open Neo4j sessions with explicit read intent: `driver.session({ defaultAccessMode: neo4j.session.READ })`.
+- Use `session.readTransaction()` for all queries.
 
 **Tests:**
 
@@ -130,7 +134,9 @@ Build the endpoint that the **client** calls to compute the user's most-advanced
 - If `targetId` is provided, prefer the terminal closest (shortest path) to the target.
 - Fall back to ranking by descendant reachability (how advanced the terminal is) if multiple terminals exist.
 - Return the list of terminals and a recommended `startNodeId`.
-- Use read-only DB credentials.
+- Use read-only DB credentials (environment variable: `NEO4J_READ_USER`).
+- Open Neo4j sessions with explicit read intent: `driver.session({ defaultAccessMode: neo4j.session.READ })`.
+- Use `session.readTransaction()` for all queries.
 
 **Tests:**
 
@@ -153,7 +159,11 @@ Allow admins to submit URLs and get proposed Cypher recommendations.
   - `{ objectiveSkills: [...], prerequisiteSkills: [...], proposedCypher: "...", notes: "..." }`
 - Return the proposed Cypher for review (never auto-execute).
 - Filter recommended prerequisites so no recommended prerequisite is itself a prerequisite of another (terminal prerequisites only).
-- Optionally provide an admin-only endpoint to execute reviewed Cypher.
+- Optionally provide an admin-only endpoint to execute reviewed Cypher:
+  - Requires admin credentials (environment variable: `NEO4J_ADMIN_USER`).
+  - Use defensive sanitizer to reject obvious write keywords as defense-in-depth: `/\b(CREATE|MERGE|SET|DELETE|REMOVE|LOAD\s+CSV|CALL\s+apoc)\b/i`.
+  - Log all admin operations with timestamp, operator ID, and executed query.
+  - Maintain audit trail of proposals and approvals.
 
 **Tests:**
 
@@ -173,6 +183,7 @@ Allow admins to submit URLs and get proposed Cypher recommendations.
 - If a tool call fails, emit a friendly error message from the LLM ("I encountered an issue searching for materials. Please try again or rephrase your question.").
 - Log all errors and timeouts for monitoring.
 - Return appropriate HTTP status codes (400 for validation, 500 for server errors, 503 for service unavailable).
+- Log and alert on any attempted write operations or `permission denied` DB errors.
 
 **Tests:**
 
@@ -188,6 +199,14 @@ Allow admins to submit URLs and get proposed Cypher recommendations.
 
 - All LLM API keys and DB credentials must remain server-side.
 - Use read-only DB accounts for all chat/search/find-path queries (see `SECURITY.md`).
+  - Environment variables: `NEO4J_READ_USER`, `NEO4J_READ_PASSWORD` for read-only operations.
+  - Environment variables: `NEO4J_ADMIN_USER`, `NEO4J_ADMIN_PASSWORD` for admin operations only.
+  - Rotate admin credentials regularly and audit their usage.
+- Always open Neo4j sessions with explicit read intent for read-only endpoints: `driver.session({ defaultAccessMode: neo4j.session.READ })`.
 - The LLM should only invoke `search_materials` and `request_material_addition` tools; it does NOT call `find-path` or `start-node` (those are client-initiated).
-- See `SECURITY.md` for database security guidelines.
+- Never auto-execute LLM-generated Cypher. Treat as proposals requiring admin review and approval.
+- Implement defense-in-depth:
+  - DB-level RBAC (read-only accounts) is the authoritative safeguard.
+  - Driver-level read intent and code-level sanitizers are secondary protections.
+- See `SECURITY.md` for detailed database security guidelines.
 - Frontend implementation tasks are in the wbp-chatbot repository.
