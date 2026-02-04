@@ -1,5 +1,15 @@
 const neo4j = require("neo4j-driver");
+const { InferenceClient } = require("@huggingface/inference");
 require("dotenv").config();
+
+// Hugging Face client (initialized lazily)
+let hf = null;
+function getHfClient() {
+  if (!hf) {
+    hf = new InferenceClient(process.env.HF_API_KEY);
+  }
+  return hf;
+}
 
 let driver;
 
@@ -427,10 +437,298 @@ async function chatbotMaterialRequest(req, res) {
   }
 }
 
+// -------------------------------------------------------------------
+// chatbotChat — LLM orchestration endpoint (Task 1)
+// -------------------------------------------------------------------
+const SYSTEM_PROMPT = `You are a helpful learning assistant for the Web Brain Project.
+Your goal is to help users discover learning materials and learning paths.
+
+When the user asks about a topic, you should search for relevant materials using the search_materials tool.
+When no relevant materials exist, you can request new materials to be added using request_material_addition.
+
+You MUST respond with valid JSON in one of these formats:
+
+1. Final response (when you have an answer for the user):
+{"type":"final","message":"<your response>","relatedMaterials":[{"nodeId":"...","name":"...","type":"skill|url"}],"suggestedActions":["action1","action2"]}
+
+2. Tool call (when you need to search or request materials):
+{"type":"tool_call","tool":"search_materials","args":{"query":"<search query>","limit":5}}
+or
+{"type":"tool_call","tool":"request_material_addition","args":{"topic":"<topic>","user_context":"<context>"}}
+
+Always respond with valid JSON only. No markdown, no extra text.`;
+
+/**
+ * Build the messages array for the HF chat completion.
+ */
+function buildMessages(
+  userMessage,
+  conversationHistory,
+  customInstructions,
+  toolResult,
+) {
+  const messages = [{ role: "system", content: SYSTEM_PROMPT }];
+
+  if (customInstructions) {
+    messages.push({
+      role: "system",
+      content: `Additional instructions: ${customInstructions}`,
+    });
+  }
+
+  // Add conversation history
+  if (Array.isArray(conversationHistory)) {
+    for (const msg of conversationHistory) {
+      messages.push({ role: msg.role, content: msg.content });
+    }
+  }
+
+  // Add current user message
+  messages.push({ role: "user", content: userMessage });
+
+  // If we have a tool result to inject, add it
+  if (toolResult) {
+    messages.push({
+      role: "assistant",
+      content: JSON.stringify({
+        type: "tool_call",
+        tool: toolResult.tool,
+        args: toolResult.args,
+      }),
+    });
+    messages.push({
+      role: "user",
+      content: `Tool result for ${toolResult.tool}: ${JSON.stringify(toolResult.output)}`,
+    });
+  }
+
+  return messages;
+}
+
+/**
+ * Call the HF inference API for chat completion.
+ */
+async function callHfChat(messages) {
+  const client = getHfClient();
+  const model = process.env.HF_MODEL || "mistralai/Mistral-7B-Instruct-v0.3";
+
+  console.log("[callHfChat] Calling HF API with model:", model);
+  console.log("[callHfChat] Messages:", JSON.stringify(messages, null, 2));
+
+  try {
+    const response = await client.chatCompletion({
+      model,
+      messages,
+      max_tokens: 1024,
+      temperature: 0.7,
+    });
+
+    console.log(
+      "[callHfChat] Success! Response:",
+      JSON.stringify(response, null, 2),
+    );
+    return response.choices[0].message.content;
+  } catch (error) {
+    console.error("[callHfChat] HF API Error:", {
+      message: error.message,
+      status: error.status,
+      statusCode: error.statusCode,
+      body: error.body,
+      data: error.data,
+      fullError: JSON.stringify(error, null, 2),
+    });
+    throw error;
+  }
+}
+
+/**
+ * Parse the LLM response as JSON, with fallback handling.
+ */
+function parseLlmResponse(raw) {
+  try {
+    // Try to extract JSON from the response (in case of markdown wrapping)
+    const cleaned = raw.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+    return JSON.parse(cleaned);
+  } catch {
+    // If parsing fails, treat as a final message
+    return {
+      type: "final",
+      message: raw,
+      relatedMaterials: [],
+      suggestedActions: [],
+    };
+  }
+}
+
+/**
+ * Execute a tool call internally (calls chatbotSearch or chatbotMaterialRequest logic).
+ */
+async function executeTool(tool, args, driver) {
+  if (tool === "search_materials") {
+    // Reuse the search logic from chatbotSearch
+    const { query, limit = 5 } = args;
+    const session = driver.session();
+
+    try {
+      const result = await session.executeRead((tx) => {
+        return tx.run(
+          `
+          MATCH (n:Skill|URL)
+          WHERE n.embedding IS NOT NULL
+          RETURN {
+            id: n.id,
+            name: n.name,
+            type: labels(n)[0]
+          } as node,
+          n.embedding as embedding
+          `,
+        );
+      });
+
+      if (result.records.length === 0) {
+        return { results: [], note: "No embeddings found" };
+      }
+
+      // Generate query embedding
+      const { pipeline } = require("@xenova/transformers");
+      const extractor = await pipeline(
+        "feature-extraction",
+        "Xenova/all-MiniLM-L6-v2",
+      );
+      const queryEmbeddingResult = await extractor(query, {
+        pooling: "mean",
+        normalize: true,
+      });
+      const queryEmbedding = Array.from(queryEmbeddingResult.data);
+
+      // Compute similarity
+      const scored = result.records
+        .map((record) => {
+          const nodeEmbedding = record.get("embedding");
+          const similarity = nodeEmbedding.reduce(
+            (sum, val, idx) => sum + val * queryEmbedding[idx],
+            0,
+          );
+          return { node: record.get("node"), similarity };
+        })
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, limit);
+
+      return { results: scored };
+    } finally {
+      session.close();
+    }
+  } else if (tool === "request_material_addition") {
+    // Queue the request (simplified: just acknowledge)
+    const requestId = `req_${Date.now()}`;
+    console.log(`[Material Request] ${requestId}:`, args);
+    return { requestId, status: "queued" };
+  }
+
+  return { error: `Unknown tool: ${tool}` };
+}
+
+/**
+ * POST /chatbot/chat — main orchestration endpoint
+ */
+async function chatbotChat(req, res) {
+  try {
+    const {
+      message,
+      sessionId,
+      conversationHistory,
+      customInstructions,
+      context,
+    } = req.body;
+
+    if (!message || typeof message !== "string" || message.trim() === "") {
+      return res
+        .status(400)
+        .json({ error: "message is required and must be a string" });
+    }
+
+    console.log(
+      `[chatbotChat] sessionId=${sessionId || "none"}, message="${message.slice(0, 50)}..."`,
+    );
+
+    // Build initial messages and call the LLM
+    let messages = buildMessages(
+      message,
+      conversationHistory,
+      customInstructions,
+      null,
+    );
+    let rawResponse = await callHfChat(messages);
+    let parsed = parseLlmResponse(rawResponse);
+
+    console.log("[chatbotChat] LLM response type:", parsed.type);
+
+    // Handle tool calls (max 1 round to prevent infinite loops)
+    if (parsed.type === "tool_call") {
+      const { tool, args } = parsed;
+      console.log(`[chatbotChat] Executing tool: ${tool}`, args);
+
+      const toolOutput = await executeTool(tool, args, driver);
+      console.log(
+        `[chatbotChat] Tool output:`,
+        JSON.stringify(toolOutput).slice(0, 200),
+      );
+
+      // Re-invoke LLM with tool result
+      messages = buildMessages(
+        message,
+        conversationHistory,
+        customInstructions,
+        {
+          tool,
+          args,
+          output: toolOutput,
+        },
+      );
+      rawResponse = await callHfChat(messages);
+      parsed = parseLlmResponse(rawResponse);
+      console.log("[chatbotChat] LLM final response type:", parsed.type);
+    }
+
+    // Build the response
+    const response = {
+      message: parsed.message || "",
+      relatedMaterials: parsed.relatedMaterials || [],
+      suggestedActions: parsed.suggestedActions || [],
+      conversationState: {
+        sessionId: sessionId || `session_${Date.now()}`,
+        lastUpdated: new Date().toISOString(),
+      },
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("[chatbotChat] Error:", error);
+    console.error("[chatbotChat] Full error details:", {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      response: error.response?.data,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+    });
+    res.status(500).json({
+      error: "Chat request failed",
+      message: error.message,
+      details: error.response?.data || error.toString(),
+    });
+  }
+}
+
 module.exports = {
   mergeTree,
   readUniversalTree,
   readPath,
   chatbotSearch,
   chatbotMaterialRequest,
+  chatbotChat,
 };

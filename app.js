@@ -36,6 +36,7 @@ app.post(
 );
 
 // Chatbot endpoints
+app.post("/chatbot/chat", cors(), neo4jService.chatbotChat);
 app.post("/chatbot/search", cors(), neo4jService.chatbotSearch);
 app.post(
   "/chatbot/material-request",

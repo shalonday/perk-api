@@ -15,6 +15,7 @@
     "test:coverage": "jest --coverage"
   },
   "dependencies": {
+    "@huggingface/inference": "^4.13.11",
     "@xenova/transformers": "^2.6.5",
     "compression": "^1.7.4",
     "cookie-parser": "~1.4.4",
