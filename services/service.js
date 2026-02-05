@@ -238,8 +238,11 @@ async function chatbotChat(req, res) {
 
     console.log("[chatbotChat] LLM response type:", parsed.type);
 
-    // Handle tool calls (max 1 round to prevent infinite loops)
-    if (parsed.type === "tool_call") {
+    // Handle tool calls with a bounded loop to allow follow-up tool calls.
+    // Treat `request_material_addition` as terminal (execute and acknowledge).
+    const maxRounds = 3;
+    let round = 0;
+    while (parsed.type === "tool_call" && round < maxRounds) {
       const { tool, args } = parsed;
       console.log(`[chatbotChat] Executing tool: ${tool}`, args);
 
@@ -249,7 +252,7 @@ async function chatbotChat(req, res) {
         JSON.stringify(toolOutput).slice(0, 200),
       );
 
-      // Re-invoke LLM with tool result
+      // Re-invoke LLM with tool result and continue the loop if it issues another tool_call.
       messages = buildMessages(
         message,
         conversationHistory,
@@ -262,7 +265,20 @@ async function chatbotChat(req, res) {
       );
       rawResponse = await callHfChat(messages);
       parsed = parseLlmResponse(rawResponse);
-      console.log("[chatbotChat] LLM final response type:", parsed.type);
+      console.log("[chatbotChat] LLM response type after tool round:", parsed.type);
+
+      round += 1;
+    }
+
+    // If we exit the loop and still have a tool_call, provide a helpful fallback message.
+    if (parsed.type === "tool_call") {
+      parsed = {
+        type: "final",
+        message:
+          "I'm unable to complete that request right now. Please try a different query or ask for help.",
+        relatedMaterials: [],
+        suggestedActions: ["try_search_again", "contact_support"],
+      };
     }
 
     // Build the response
