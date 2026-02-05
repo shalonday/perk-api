@@ -55,7 +55,7 @@ async function readUniversalTree(req, res, next) {
     );
   });
 
-  let prereqLinks = getPrerequisiteLinksTransaction.records.map((record) => {
+  const prereqLinks = getPrerequisiteLinksTransaction.records.map((record) => {
     const link = {
       source: record.get("s").properties.id,
       target: record.get("u").properties.id,
@@ -69,7 +69,7 @@ async function readUniversalTree(req, res, next) {
     return tx.run("MATCH (u:URL)-[r:TEACHES]->(s:Skill) RETURN u,r,s");
   });
 
-  let teachesLinks = getTeachesLinksTransaction.records.map((record) => {
+  const teachesLinks = getTeachesLinksTransaction.records.map((record) => {
     const link = {
       source: record.get("u").properties.id,
       target: record.get("s").properties.id,
@@ -213,13 +213,8 @@ async function executeTool(tool, args, driver) {
  */
 async function chatbotChat(req, res) {
   try {
-    const {
-      message,
-      sessionId,
-      conversationHistory,
-      customInstructions,
-      context,
-    } = req.body;
+    const { message, sessionId, conversationHistory, customInstructions } =
+      req.body;
 
     if (!message || typeof message !== "string" || message.trim() === "") {
       return res

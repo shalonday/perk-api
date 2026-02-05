@@ -12,7 +12,10 @@
     "generate-embeddings": "node scripts/generateEmbeddings.js",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{js,json,md}\""
   },
   "dependencies": {
     "@huggingface/inference": "^4.13.11",
@@ -31,6 +34,10 @@
     "neo4j-driver": "^5.14.0"
   },
   "devDependencies": {
-    "jest": "^30.2.0"
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "jest": "^30.2.0",
+    "prettier": "^3.8.1"
   }
 }

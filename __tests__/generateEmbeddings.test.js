@@ -244,7 +244,7 @@ describe("Embedding Generation Script", () => {
   });
 
   test("should handle errors during embedding generation", async () => {
-    const { pipeline } = require("@xenova/transformers");
+    require("@xenova/transformers");
 
     // Mock pipeline to reject
     const mockPipeline = jest

@@ -27,7 +27,7 @@ jest.mock("neo4j-driver", () => {
 // Mock @xenova/transformers
 jest.mock("@xenova/transformers", () => ({
   pipeline: jest.fn(() => {
-    return jest.fn((text, options) => {
+    return jest.fn((text, _options) => {
       // Return mock embedding based on text
       const mockEmbedding = new Float32Array(384);
       // Simple hash-based mock embedding for consistency

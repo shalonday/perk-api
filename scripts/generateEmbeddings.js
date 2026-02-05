@@ -182,7 +182,6 @@ async function main() {
     for (let i = 0; i < nodes.length; i += BATCH_SIZE) {
       const batch = nodes.slice(i, i + BATCH_SIZE);
       const startIdx = i + 1;
-      const endIdx = Math.min(i + BATCH_SIZE, nodes.length);
 
       console.log(`[${startIdx}/${nodes.length}] Processing batch...`);
 
