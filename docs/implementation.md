@@ -34,35 +34,6 @@ Build the LLM orchestration endpoint in `perk-api`.
 
 ---
 
-## Task 2: Implement `GET /chatbot/search` endpoint
-
-Build the search endpoint that the orchestrator calls when the LLM requests a `search_materials` tool.
-
-**Request:** `GET /chatbot/search?query=...&limit=...&page=...` (with optional encoded `filters`, `sort`)
-
-**Response:** `{ results: [{ nodeId, name, type, pathLink, similarity, metadata?: {...} }], total?: number, facets?: {...} }`
-
-**Requirements:**
-
-- Execute a Neo4j similarity search over embeddings for the given query.
-- Support optional `filters` (e.g., `minRating`, `maxTimeMinutes`, `nodeTypes`) as query parameters or via a POST helper for complex payloads.
-- Return result nodes with similarity scores; include optional `metadata` (e.g., `averageTimeMinutes`, `rating`).
-- Optionally return `facets` for future filtering UI (e.g., difficulty counts, tag counts).
-- Use read-only DB credentials (see `SECURITY.md`).
-- Open Neo4j sessions with explicit read intent: `driver.session({ defaultAccessMode: neo4j.session.READ })`.
-- Use `session.readTransaction()` for all queries.
-
-**Tests:**
-
-- Test search with valid query returns ranked results.
-- Test search with filters (minRating, maxTimeMinutes, nodeTypes).
-- Test search with limit and pagination.
-- Test search with no embeddings returns empty results.
-- Test invalid query (empty string) returns 400 error.
-- Mock Neo4j driver and embedding pipeline.
-
----
-
 ## Task 3: Implement `POST /chatbot/request-material-addition` tool handler
 
 Build the backend handler for when the LLM invokes `request_material_addition`.

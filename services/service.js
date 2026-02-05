@@ -265,7 +265,10 @@ async function chatbotChat(req, res) {
       );
       rawResponse = await callHfChat(messages);
       parsed = parseLlmResponse(rawResponse);
-      console.log("[chatbotChat] LLM response type after tool round:", parsed.type);
+      console.log(
+        "[chatbotChat] LLM response type after tool round:",
+        parsed.type,
+      );
 
       round += 1;
     }

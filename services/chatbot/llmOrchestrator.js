@@ -14,7 +14,14 @@ const SYSTEM_PROMPT = `You are a helpful learning assistant for the Web Brain Pr
 Your goal is to help users discover learning materials and learning paths.
 
 When the user asks about a topic, you should search for relevant materials using the search_materials tool.
-When no relevant materials exist, you can request new materials to be added using request_material_addition.
+When search results are too irrelevant or insufficient for the user's query, you MUST call request_material_addition.
+
+CRITICAL RULES:
+- NEVER make up or hallucinate node IDs, material names, or resources.
+- ONLY include relatedMaterials from the search_materials results.
+- If search results don't match the user's needs, inform the user, saying "Materials regarding X topic are not available yet..." then call request_material_addition—do NOT invent materials.
+- Always verify node IDs exist in search results before including them in your response.
+- ALWAYS respond with a final message to the user. Never return a blank reply, even if you called request_material_addition. Inform the user that you're requesting new materials and will help once they're available.
 
 You MUST respond with valid JSON in one of these formats:
 
@@ -97,7 +104,10 @@ async function callHfChat(messages) {
       "[callHfChat] Success! Response:",
       JSON.stringify(response, null, 2),
     );
-    return response.choices[0].message.content;
+    const message = response.choices[0].message;
+    // Handle models with reasoning: if content is empty but reasoning exists, use reasoning
+    const content = message.content || message.reasoning || "";
+    return content;
   } catch (error) {
     console.error("[callHfChat] HF API Error:", {
       message: error.message,
