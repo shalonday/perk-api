@@ -7,7 +7,7 @@
 const mockChatCompletion = jest.fn();
 jest.mock("@huggingface/inference", () => {
   return {
-    HfInference: jest.fn().mockImplementation(() => ({
+    InferenceClient: jest.fn().mockImplementation(() => ({
       chatCompletion: mockChatCompletion,
     })),
   };
@@ -34,27 +34,29 @@ jest.mock("neo4j-driver", () => {
   };
 });
 
+// Import test helpers
+const {
+  createNormalizedEmbedding,
+  createReq,
+  createRes,
+  createToolCallResponse,
+  createFinalResponse,
+  mockNeo4jSearchResults,
+} = require("./helpers/chatbotChat.helpers");
+
 // Mock @xenova/transformers for search_materials tool
-jest.mock("@xenova/transformers", () => ({
-  pipeline: jest.fn(() => {
-    return jest.fn((text, options) => {
-      const mockEmbedding = new Float32Array(384);
-      for (let i = 0; i < 384; i++) {
-        mockEmbedding[i] = Math.sin(i * 0.1) * 0.5;
-      }
-      // Normalize
-      let sum = 0;
-      for (let i = 0; i < 384; i++) {
-        sum += mockEmbedding[i] * mockEmbedding[i];
-      }
-      const norm = Math.sqrt(sum);
-      for (let i = 0; i < 384; i++) {
-        mockEmbedding[i] /= norm;
-      }
-      return Promise.resolve({ data: mockEmbedding });
-    });
-  }),
-}));
+jest.mock("@xenova/transformers", () => {
+  return {
+    pipeline: jest.fn(() => {
+      // Require helpers inside the mock factory to avoid referencing out-of-scope variables
+      const {
+        createNormalizedEmbedding,
+      } = require("./helpers/chatbotChat.helpers");
+      const embedding = createNormalizedEmbedding();
+      return jest.fn(() => Promise.resolve({ data: embedding }));
+    }),
+  };
+});
 
 describe("POST /chatbot/chat Endpoint", () => {
   let chatbotChat;
@@ -78,51 +80,27 @@ describe("POST /chatbot/chat Endpoint", () => {
     mockSession = mockDriver.session();
 
     // Setup mock Express req/res
-    req = {
-      body: {
-        message: "I want to learn React hooks",
-        sessionId: "test-session-123",
-        conversationHistory: [],
-        customInstructions: null,
-        context: {},
-      },
-    };
-
-    res = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn(),
-    };
+    req = createReq();
+    res = createRes();
   });
 
   describe("Valid requests", () => {
     test("should handle successful chat request with final response (no tool call)", async () => {
       // Mock LLM response - final answer
-      mockChatCompletion.mockResolvedValueOnce({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                type: "final",
-                message: "React hooks are great! Here are some resources.",
-                relatedMaterials: [
-                  { nodeId: "uuid-1", name: "React Hooks Guide", type: "url" },
-                ],
-                suggestedActions: ["Learn useState", "Learn useEffect"],
-              }),
-            },
-          },
-        ],
-      });
+      mockChatCompletion.mockResolvedValueOnce(
+        createFinalResponse({
+          message: "React hooks are great.",
+          suggestedActions: ["Learn useState", "Learn useEffect"],
+        }),
+      );
 
       await chatbotChat(req, res);
 
       expect(mockChatCompletion).toHaveBeenCalledTimes(1);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: "React hooks are great! Here are some resources.",
-          relatedMaterials: [
-            { nodeId: "uuid-1", name: "React Hooks Guide", type: "url" },
-          ],
+          message: "React hooks are great.",
+          relatedMaterials: [],
           suggestedActions: ["Learn useState", "Learn useEffect"],
           conversationState: expect.objectContaining({
             sessionId: "test-session-123",
@@ -133,54 +111,40 @@ describe("POST /chatbot/chat Endpoint", () => {
 
     test("should handle LLM returning tool_call and execute search_materials", async () => {
       // Mock LLM first response - tool call
-      mockChatCompletion.mockResolvedValueOnce({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                type: "tool_call",
-                tool: "search_materials",
-                args: { query: "React hooks", limit: 5 },
-              }),
-            },
-          },
-        ],
-      });
+      mockChatCompletion.mockResolvedValueOnce(
+        createToolCallResponse("search_materials", {
+          query: "React hooks",
+          limit: 5,
+        }),
+      );
 
       // Mock Neo4j search results
-      mockSession.executeRead.mockResolvedValueOnce({
-        records: [
+      mockSession.executeRead.mockResolvedValueOnce(
+        mockNeo4jSearchResults([
           {
-            get: jest.fn((key) => {
-              if (key === "node") {
-                return { id: "uuid-1", name: "React Hooks Guide", type: "URL" };
-              } else if (key === "embedding") {
-                const emb = new Float32Array(384);
-                for (let i = 0; i < 384; i++) emb[i] = 0.1;
-                return emb;
-              }
-            }),
+            node: {
+              id: "uuid-1",
+              name: "https://reactjs.org/docs/hooks-intro",
+              type: "URL",
+            },
+            embedding: createNormalizedEmbedding(),
           },
-        ],
-      });
+        ]),
+      );
 
       // Mock LLM second response - final answer after tool execution
-      mockChatCompletion.mockResolvedValueOnce({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                type: "final",
-                message: "I found these materials about React hooks.",
-                relatedMaterials: [
-                  { nodeId: "uuid-1", name: "React Hooks Guide", type: "url" },
-                ],
-                suggestedActions: [],
-              }),
+      mockChatCompletion.mockResolvedValueOnce(
+        createFinalResponse({
+          message: "I found these materials about React hooks.",
+          relatedMaterials: [
+            {
+              nodeId: "uuid-1",
+              name: "https://reactjs.org/docs/hooks-intro",
+              type: "url",
             },
-          },
-        ],
-      });
+          ],
+        }),
+      );
 
       await chatbotChat(req, res);
 
@@ -201,38 +165,19 @@ describe("POST /chatbot/chat Endpoint", () => {
 
     test("should handle request_material_addition tool call", async () => {
       // Mock LLM first response - request material addition
-      mockChatCompletion.mockResolvedValueOnce({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                type: "tool_call",
-                tool: "request_material_addition",
-                args: {
-                  topic: "SolidJS",
-                  user_context: "User wants to learn reactive frameworks",
-                },
-              }),
-            },
-          },
-        ],
-      });
+      mockChatCompletion.mockResolvedValueOnce(
+        createToolCallResponse("request_material_addition", {
+          topic: "SolidJS",
+          user_context: "User wants to learn reactive frameworks",
+        }),
+      );
 
       // Mock LLM second response after tool
-      mockChatCompletion.mockResolvedValueOnce({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                type: "final",
-                message: "I've submitted your request for SolidJS materials.",
-                relatedMaterials: [],
-                suggestedActions: [],
-              }),
-            },
-          },
-        ],
-      });
+      mockChatCompletion.mockResolvedValueOnce(
+        createFinalResponse({
+          message: "I've submitted your request for SolidJS materials.",
+        }),
+      );
 
       req.body.message = "I want to learn SolidJS";
 
@@ -248,54 +193,31 @@ describe("POST /chatbot/chat Endpoint", () => {
 
     test("should inject tool result back to LLM correctly", async () => {
       // Mock tool call response
-      mockChatCompletion.mockResolvedValueOnce({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                type: "tool_call",
-                tool: "search_materials",
-                args: { query: "TypeScript", limit: 3 },
-              }),
-            },
-          },
-        ],
-      });
+      mockChatCompletion.mockResolvedValueOnce(
+        createToolCallResponse("search_materials", {
+          query: "TypeScript",
+          limit: 3,
+        }),
+      );
 
       // Mock search results
-      mockSession.executeRead.mockResolvedValueOnce({
-        records: [
+      mockSession.executeRead.mockResolvedValueOnce(
+        mockNeo4jSearchResults([
           {
-            get: jest.fn((key) => {
-              if (key === "node") {
-                return {
-                  id: "uuid-ts",
-                  name: "TypeScript Basics",
-                  type: "URL",
-                };
-              } else if (key === "embedding") {
-                return new Float32Array(384).fill(0.1);
-              }
-            }),
+            node: {
+              id: "uuid-ts",
+              name: "https://www.typescriptlang.org/docs/",
+              type: "URL",
+            },
+            embedding: createNormalizedEmbedding(),
           },
-        ],
-      });
+        ]),
+      );
 
       // Mock final response
-      mockChatCompletion.mockResolvedValueOnce({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                type: "final",
-                message: "Here are TypeScript resources.",
-                relatedMaterials: [],
-                suggestedActions: [],
-              }),
-            },
-          },
-        ],
-      });
+      mockChatCompletion.mockResolvedValueOnce(
+        createFinalResponse({ message: "Here are TypeScript resources." }),
+      );
 
       req.body.message = "Show me TypeScript tutorials";
 
@@ -318,20 +240,9 @@ describe("POST /chatbot/chat Endpoint", () => {
         { role: "assistant", content: "JavaScript is a programming language." },
       ];
 
-      mockChatCompletion.mockResolvedValueOnce({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                type: "final",
-                message: "Sure, here's more info.",
-                relatedMaterials: [],
-                suggestedActions: [],
-              }),
-            },
-          },
-        ],
-      });
+      mockChatCompletion.mockResolvedValueOnce(
+        createFinalResponse({ message: "Sure, here's more info." }),
+      );
 
       await chatbotChat(req, res);
 
@@ -354,20 +265,9 @@ describe("POST /chatbot/chat Endpoint", () => {
     test("should handle custom instructions", async () => {
       req.body.customInstructions = "Focus on beginner-friendly materials";
 
-      mockChatCompletion.mockResolvedValueOnce({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                type: "final",
-                message: "Here are beginner resources.",
-                relatedMaterials: [],
-                suggestedActions: [],
-              }),
-            },
-          },
-        ],
-      });
+      mockChatCompletion.mockResolvedValueOnce(
+        createFinalResponse({ message: "Here are beginner resources." }),
+      );
 
       await chatbotChat(req, res);
 
@@ -444,19 +344,9 @@ describe("POST /chatbot/chat Endpoint", () => {
     });
 
     test("should handle tool execution failure", async () => {
-      mockChatCompletion.mockResolvedValueOnce({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                type: "tool_call",
-                tool: "search_materials",
-                args: { query: "test", limit: 5 },
-              }),
-            },
-          },
-        ],
-      });
+      mockChatCompletion.mockResolvedValueOnce(
+        createToolCallResponse("search_materials", { query: "test", limit: 5 }),
+      );
 
       // Mock search failure
       mockSession.executeRead.mockRejectedValueOnce(
@@ -486,20 +376,9 @@ describe("POST /chatbot/chat Endpoint", () => {
     test("should generate new sessionId if not provided", async () => {
       delete req.body.sessionId;
 
-      mockChatCompletion.mockResolvedValueOnce({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                type: "final",
-                message: "Hello!",
-                relatedMaterials: [],
-                suggestedActions: [],
-              }),
-            },
-          },
-        ],
-      });
+      mockChatCompletion.mockResolvedValueOnce(
+        createFinalResponse({ message: "Hello!" }),
+      );
 
       await chatbotChat(req, res);
 
@@ -513,20 +392,9 @@ describe("POST /chatbot/chat Endpoint", () => {
     });
 
     test("should preserve provided sessionId", async () => {
-      mockChatCompletion.mockResolvedValueOnce({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                type: "final",
-                message: "Hello!",
-                relatedMaterials: [],
-                suggestedActions: [],
-              }),
-            },
-          },
-        ],
-      });
+      mockChatCompletion.mockResolvedValueOnce(
+        createFinalResponse({ message: "Hello!" }),
+      );
 
       await chatbotChat(req, res);
 
@@ -540,20 +408,9 @@ describe("POST /chatbot/chat Endpoint", () => {
     });
 
     test("should include timestamp in conversationState", async () => {
-      mockChatCompletion.mockResolvedValueOnce({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                type: "final",
-                message: "Hi",
-                relatedMaterials: [],
-                suggestedActions: [],
-              }),
-            },
-          },
-        ],
-      });
+      mockChatCompletion.mockResolvedValueOnce(
+        createFinalResponse({ message: "Hi" }),
+      );
 
       await chatbotChat(req, res);
 
