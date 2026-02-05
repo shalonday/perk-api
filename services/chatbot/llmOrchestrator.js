@@ -80,7 +80,7 @@ function buildMessages(
  */
 async function callHfChat(messages) {
   const client = getHfClient();
-  const model = process.env.HF_MODEL || "mistralai/Mistral-7B-Instruct-v0.3";
+  const model = process.env.HF_MODEL || "openai/gpt-oss-120b";
 
   console.log("[callHfChat] Calling HF API with model:", model);
   console.log("[callHfChat] Messages:", JSON.stringify(messages, null, 2));
