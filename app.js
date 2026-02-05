@@ -29,12 +29,6 @@ const neo4jService = require("./services/service");
 app.get("/tree", cors(), neo4jService.readUniversalTree);
 app.get("/paths/:startNodeId/:targetNodeId", cors(), neo4jService.readPath);
 
-app.post(
-  "/tree",
-  cors({ origin: "https://shalonday.github.io" }),
-  neo4jService.mergeTree,
-);
-
 // Chatbot endpoints
 app.post("/chatbot/chat", cors(), neo4jService.chatbotChat);
 app.post("/chatbot/search", cors(), neo4jService.chatbotSearch);
