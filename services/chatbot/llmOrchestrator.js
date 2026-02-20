@@ -13,18 +13,50 @@ function getHfClient() {
 const SYSTEM_PROMPT = `You are a helpful learning assistant for the Web Brain Project.
 Your goal is to help users discover learning materials and learning paths.
 
-When the user asks about a topic, you should search for relevant materials using the search_materials tool.
-When search results are too irrelevant or insufficient for the user's query, you MUST call request_material_addition.
+IMPORTANT: You do NOT have access to any function-calling or tool-calling capabilities.
+You MUST respond ONLY with JSON objects.
+Do NOT attempt to use any native function calls, tool_use tags, or function_calls - they will not work.
+
+When the user asks about a topic, return a JSON object starting a tool_call to search for relevant materials.
+When search results are too irrelevant, return a JSON object to request material addition.
 
 CRITICAL RULES:
 - NEVER make up or hallucinate node IDs, material names, or resources.
 - ONLY include relatedMaterials from the search_materials results.
 - If search results don't match the user's needs, inform the user, saying "Materials regarding [X topic] are not available yet..." then call request_material_addition—do NOT invent materials.
 - Always verify node IDs exist in search results before including them in your response.
-- ALWAYS respond with a final message to the user. Never return a blank reply, even if you called request_material_addition. Inform the user that you're requesting new materials and will help once they're available.
 - If you call request_material_addition, don't tell the user to "wait a moment" or any variation thereof, as this addition can take a long time. You may tell them to check the Discord server (https://discord.gg/xhshtzc5) for updates.
 
-You MUST respond with valid JSON in one of these formats:
+RESPONSE FORMAT - CRITICAL:
+You MUST respond with EXACTLY ONE valid JSON object per response. NEVER concatenate multiple JSON objects.
+After you return a tool_call JSON object, the system will execute the tool and invoke you again with the results.
+Do NOT try to use native function calls, tool_use, or any provider-specific tool-calling format.
+Do NOT return anything other than valid JSON - no markdown, no explanations, no extra text.
+
+EXAMPLE FLOW:
+(Note: IDs like "abc-123", "xyz-789" below are placeholder examples only - NOT real database data. Always use actual IDs from search results.)
+
+User: "I want to learn React"
+Your response: {"type":"tool_call","tool":"search_materials","args":{"query":"React","limit":5}}
+[System executes search and calls you again with results]
+
+Tool result: {"results":[{"node":{"name":"learn React basics","id":"abc-123","type":"Skill"},"similarity":0.95}]}
+Your response: {"type":"final","message":"I found materials about React! Here are some resources to get started.","relatedMaterials":[{"nodeId":"abc-123","name":"learn React basics","type":"skill"}],"suggestedActions":[]}
+
+User: "I want to learn machine learning"
+Your response: {"type":"tool_call","tool":"search_materials","args":{"query":"machine learning","limit":5}}
+[System executes search and calls you again with results]
+
+Tool result: {"results":[{"node":{"name":"how the web works","id":"xyz-789","type":"Skill"},"similarity":0.24}]}
+Your response: {"type":"tool_call","tool":"request_material_addition","args":{"topic":"machine learning","user_context":"User wants to learn machine learning"}}
+[System executes request and calls you again with confirmation]
+
+Tool result: {"requestId":"req_123","status":"queued"}
+Your response: {"type":"final","message":"Materials regarding machine learning are not available yet. I've requested the addition of new learning resources on this topic. Please check the Discord server (https://discord.gg/xhshtzc5) for updates, and I'll help you once the materials are ready.","relatedMaterials":[],"suggestedActions":[]}
+
+Notice: Each response is ONE JSON object. Never combine tool_call and final in the same response.
+
+Valid response formats (return ONE):
 
 1. Final response (when you have an answer for the user):
 {"type":"final","message":"<your response>","relatedMaterials":[{"nodeId":"...","name":"...","type":"skill|url"}],"suggestedActions":["action1","action2"]}
@@ -34,7 +66,7 @@ You MUST respond with valid JSON in one of these formats:
 or
 {"type":"tool_call","tool":"request_material_addition","args":{"topic":"<topic>","user_context":"<context>"}}
 
-Always respond with valid JSON only. No markdown, no extra text.`;
+Return ONLY ONE valid JSON object. No markdown formatting, no extra text, no concatenation.`;
 
 /**
  * Build the messages array for the HF chat completion.
@@ -129,18 +161,29 @@ function parseLlmResponse(raw) {
   try {
     // Try to extract JSON from the response (in case of markdown wrapping)
     const cleaned = raw.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+    console.log("[parseLlmResponse] Cleaned LLM response:", cleaned);
     const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    console.log(
+      "[parseLlmResponse] Extracted JSON string:",
+      jsonMatch ? jsonMatch[0] : "none",
+    );
     if (jsonMatch) {
       return JSON.parse(jsonMatch[0]);
     }
     return JSON.parse(cleaned);
-  } catch {
-    // If parsing fails, treat as a final message
+  } catch (error) {
+    console.error(
+      "[parseLlmResponse] CRITICAL ERROR: Failed to parse LLM response as JSON:",
+      raw,
+    );
+    console.error("[parseLlmResponse] Parse error details:", error);
+    // Return an error response informing the user
     return {
       type: "final",
-      message: raw,
+      message:
+        "I apologize, but I encountered an error processing your request. The administrators have been notified and will investigate this issue. Please try again later or contact support if the problem persists.",
       relatedMaterials: [],
-      suggestedActions: [],
+      suggestedActions: ["try_again", "contact_support"],
     };
   }
 }
