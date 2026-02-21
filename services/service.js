@@ -227,19 +227,10 @@ async function executeSearch(args) {
 }
 
 /**
- * Queue a material addition request.
- */
-async function queueMaterialRequest(args) {
-  const requestId = `req_${Date.now()}`;
-  console.log(`[queueMaterialRequest] ${requestId}:`, args);
-  return { requestId, status: "queued" };
-}
-
-/**
  * Get LLM's decision after receiving search results.
  * The LLM decides whether to:
- * 1. Request material addition (if results were insufficient)
- * 2. Send a final response to the user
+ * 1. Return a final response with relevant materials
+ * 2. Ask the user if they have materials to contribute
  */
 async function getLlmDecisionAfterSearch(
   userMessage,
@@ -267,45 +258,11 @@ async function getLlmDecisionAfterSearch(
 }
 
 /**
- * Handle request_material_addition tool call and get final LLM response.
- */
-async function handleMaterialRequestAndGetFinalResponse(
-  userMessage,
-  conversationHistory,
-  customInstructions,
-  requestToolCall,
-) {
-  const requestResult = await queueMaterialRequest(requestToolCall.args);
-
-  const messages = buildMessages(
-    userMessage,
-    conversationHistory,
-    customInstructions,
-    {
-      tool: requestToolCall.tool,
-      args: requestToolCall.args,
-      output: requestResult,
-    },
-  );
-  const rawResponse = await callHfChat(messages);
-  const parsed = parseLlmResponse(rawResponse);
-
-  console.log(
-    "[handleMaterialRequestAndGetFinalResponse] LLM response type:",
-    parsed.type,
-  );
-
-  return parsed;
-}
-
-/**
  * POST /chatbot/chat — main chatbot orchestration endpoint.
  * Orchestrates the conversation flow:
  * 1. User sends message → LLM returns response (search tool call or final response)
  * 2. If search tool call: backend executes search → LLM receives results
- * 3. LLM decides: request_material_addition or final response
- * 4. If request_material_addition: execute and get final response
- * 5. If final response appears at any step, validate and return to user
+ * 3. LLM returns final response (with materials if found, or asking to contribute)
  */
 async function chatbotChat(req, res) {
   try {
@@ -362,20 +319,7 @@ async function chatbotChat(req, res) {
         searchResults,
       );
 
-      // Step 4: If LLM requests material addition, handle it and get final response
-      if (
-        decisionResponse.type === "tool_call" &&
-        decisionResponse.tool === "request_material_addition"
-      ) {
-        decisionResponse = await handleMaterialRequestAndGetFinalResponse(
-          message,
-          conversationHistory,
-          customInstructions,
-          decisionResponse,
-        );
-      }
-
-      // Step 5: Validate final response
+      // Step 4: Validate final response
       if (decisionResponse.type !== "final") {
         console.warn(
           "[chatbotChat] Expected final response, got:",
@@ -391,17 +335,6 @@ async function chatbotChat(req, res) {
       }
 
       llmResponse = decisionResponse;
-    } else if (
-      llmResponse.type === "tool_call" &&
-      llmResponse.tool === "request_material_addition"
-    ) {
-      // Handle unexpected request_material_addition on initial response
-      llmResponse = await handleMaterialRequestAndGetFinalResponse(
-        message,
-        conversationHistory,
-        customInstructions,
-        llmResponse,
-      );
     } else {
       // Unexpected response type
       console.warn("[chatbotChat] Unexpected response type:", llmResponse.type);

@@ -11,7 +11,6 @@ The PERK API serves as the central backend for the Web Brain Project ecosystem, 
 - **Knowledge Graph Retrieval**: Read operations for skills, URLs, and their prerequisite relationships stored in Neo4j
 - **Semantic Search**: Vector-based similarity search over educational resources using embeddings
 - **AI Chat Orchestration**: LLM-powered conversational assistant with tool-calling capabilities for material search and recommendations
-- **Material Requests**: Community-driven system for requesting new educational resources
 
 ## Architecture
 
@@ -68,9 +67,8 @@ perk-api/
 
 ### Chatbot Endpoints
 
-- `POST /chatbot/chat` - AI-powered chat with tool calling (search, material requests)
+- `POST /chatbot/chat` - AI-powered chat with tool calling for material search
 - `POST /chatbot/search` - Semantic search for educational materials
-- `POST /chatbot/material-request` - Submit requests for new learning resources
 
 ## Usage Flow
 
@@ -92,14 +90,12 @@ The PERK API is consumed by two frontend applications:
   - **Uses**:
     - `POST /chatbot/chat` - Main conversational interface
     - `POST /chatbot/search` - Semantic material lookup (used for ad-hoc searches)
-    - `POST /chatbot/material-request` - Community material suggestions
   - **Flow**:
     1. User asks question → Chatbot UI `POST`s to `POST /chatbot/chat`
     2. Server builds messages and calls the LLM; the LLM may reply with a `tool_call` (e.g., `search_materials`)
-    3. When `search_materials` is requested the server executes the same semantic search logic (the internal implementation behind `POST /chatbot/search`) and returns tool results to the LLM
-    4. The LLM may now return a final response or a second tool call (commonly `request_material_addition` if results are not relevant)
-    5. If a second tool call is returned, the server executes it (e.g., queues a material request) and re-invokes the LLM for a final response
-    6. Server responds to the UI with the LLM message plus any `relatedMaterials` and suggested actions; the UI can also call `POST /chatbot/search` directly for ad-hoc lookups or `POST /chatbot/material-request` to submit suggestions
+    3. When `search_materials` is requested the server executes semantic search logic and returns tool results to the LLM
+    4. The LLM returns a final response with the search results or (if results are insufficient) asks the user if they have materials they'd like to contribute
+    5. Server responds to the UI with the LLM message plus any `relatedMaterials` and suggested actions; the UI can also call `POST /chatbot/search` directly for ad-hoc material lookups
 
 ### LLM Tool-Calling Workflow
 
@@ -116,10 +112,9 @@ Parse response (JSON)
   ↓
 Type: tool_call?
   ├─ YES → executeTool() (server executes internal tool logic)
-  │         ├─ `search_materials` → server performs semantic search (same logic as `POST /chatbot/search` / `searchNodesBySimilarity()`)
-  │         └─ `request_material_addition` → server queues a request (also exposed via `POST /chatbot/material-request` for direct submissions)
+  │         └─ `search_materials` → server performs semantic search
   │         ↓
-  │   Re-invoke LLM with tool result (LLM may issue a second tool call or a final response)
+  │   Re-invoke LLM with tool result
   │         ↓
   └─ NO → Return final response
         ↓

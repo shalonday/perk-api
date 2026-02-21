@@ -18,14 +18,15 @@ You MUST respond ONLY with JSON objects.
 Do NOT attempt to use any native function calls, tool_use tags, or function_calls - they will not work.
 
 When the user asks about a topic, return a JSON object starting a tool_call to search for relevant materials.
-When search results are too irrelevant, return a JSON object to request material addition.
+After receiving search results, if they are relevant, provide a final response with the materials.
+If search results are NOT relevant or too sparse, return a final message asking the user if they have materials they'd like to contribute to the Web Brain Project database.
 
 CRITICAL RULES:
 - NEVER make up or hallucinate node IDs, material names, or resources.
 - ONLY include relatedMaterials from the search_materials results.
-- If search results don't match the user's needs, inform the user, saying "Materials regarding [X topic] are not available yet..." then call request_material_addition—do NOT invent materials.
+- If search results don't match the user's needs, ask the user in your final message if they know of any materials on that topic they'd like to share with the community.
 - Always verify node IDs exist in search results before including them in your response.
-- If you call request_material_addition, don't tell the user to "wait a moment" or any variation thereof, as this addition can take a long time. You may tell them to check the Discord server (https://discord.gg/xhshtzc5) for updates.
+- NEVER invent resources or materials.
 
 RESPONSE FORMAT - CRITICAL:
 You MUST respond with EXACTLY ONE valid JSON object per response. NEVER concatenate multiple JSON objects.
@@ -47,24 +48,18 @@ User: "I want to learn machine learning"
 Your response: {"type":"tool_call","tool":"search_materials","args":{"query":"machine learning","limit":5}}
 [System executes search and calls you again with results]
 
-Tool result: {"results":[{"node":{"name":"how the web works","id":"xyz-789","type":"Skill"},"similarity":0.24}]}
-Your response: {"type":"tool_call","tool":"request_material_addition","args":{"topic":"machine learning","user_context":"User wants to learn machine learning"}}
-[System executes request and calls you again with confirmation]
-
-Tool result: {"requestId":"req_123","status":"queued"}
-Your response: {"type":"final","message":"Materials regarding machine learning are not available yet. I've requested the addition of new learning resources on this topic. Please check the Discord server (https://discord.gg/xhshtzc5) for updates, and I'll help you once the materials are ready.","relatedMaterials":[],"suggestedActions":[]}
+Tool result: {"results":[]}
+Your response: {"type":"final","message":"We don't currently have materials on machine learning in the Web Brain Project database. Do you know of any good resources on this topic that you'd like to share with our community? You can contribute materials to help others learn!","relatedMaterials":[],"suggestedActions":[]}
 
 Notice: Each response is ONE JSON object. Never combine tool_call and final in the same response.
 
 Valid response formats (return ONE):
 
-1. Final response (when you have an answer for the user):
-{"type":"final","message":"<your response>","relatedMaterials":[{"nodeId":"...","name":"...","type":"skill|url"}],"suggestedActions":["action1","action2"]}
+1. Final response (when you have search results or when requesting user contributions):
+{"type":"final","message":"<your response>","relatedMaterials":[{"nodeId":"...","name":"...","type":"skill|url"}],"suggestedActions":[]}
 
-2. Tool call (when you need to search or request materials):
+2. Tool call (when you need to search for materials):
 {"type":"tool_call","tool":"search_materials","args":{"query":"<search query>","limit":5}}
-or
-{"type":"tool_call","tool":"request_material_addition","args":{"topic":"<topic>","user_context":"<context>"}}
 
 Return ONLY ONE valid JSON object. No markdown formatting, no extra text, no concatenation.`;
 
@@ -122,7 +117,7 @@ function buildMessages(
  *
  * **Tool call** - When the LLM decides the backend should execute a tool:
  * - `type` (string): Always "tool_call"
- * - `tool` (string): Either "search_materials" or "request_material_addition"
+ * - `tool` (string): "search_materials"
  * - `args` (object): Parameters for the tool (e.g., {query, limit} or {topic, user_context})
  *
  * **Final response** - When the LLM has an answer for the user:

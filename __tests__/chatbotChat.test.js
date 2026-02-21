@@ -163,19 +163,23 @@ describe("POST /chatbot/chat Endpoint", () => {
       );
     });
 
-    test("should handle request_material_addition tool call", async () => {
-      // Mock LLM first response - request material addition
+    test("should handle LLM asking user to contribute materials", async () => {
+      // Mock LLM first response - search tool call
       mockChatCompletion.mockResolvedValueOnce(
-        createToolCallResponse("request_material_addition", {
-          topic: "SolidJS",
-          user_context: "User wants to learn reactive frameworks",
+        createToolCallResponse("search_materials", {
+          query: "SolidJS",
+          limit: 5,
         }),
       );
 
-      // Mock LLM second response after tool
+      // Mock search results (no relevant materials found)
+      mockSession.executeRead.mockResolvedValueOnce(mockNeo4jSearchResults([]));
+
+      // Mock LLM second response - no relevant results, asking for contributions
       mockChatCompletion.mockResolvedValueOnce(
         createFinalResponse({
-          message: "I've submitted your request for SolidJS materials.",
+          message:
+            "We don't have materials on SolidJS. Do you have any resources you'd like to contribute?",
         }),
       );
 
@@ -186,7 +190,7 @@ describe("POST /chatbot/chat Endpoint", () => {
       expect(mockChatCompletion).toHaveBeenCalledTimes(2);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: "I've submitted your request for SolidJS materials.",
+          message: expect.stringContaining("Do you have any resources"),
         }),
       );
     });
@@ -200,7 +204,7 @@ describe("POST /chatbot/chat Endpoint", () => {
         }),
       );
 
-      // Mock search results
+      // Mock search results from database
       mockSession.executeRead.mockResolvedValueOnce(
         mockNeo4jSearchResults([
           {
