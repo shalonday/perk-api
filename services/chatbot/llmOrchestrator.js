@@ -117,6 +117,22 @@ function buildMessages(
 
 /**
  * Call the HF inference API for chat completion.
+ * The LLM returns a JSON string with instructions for the backend to execute.
+ * The response always has one of two structures:
+ *
+ * **Tool call** - When the LLM decides the backend should execute a tool:
+ * - `type` (string): Always "tool_call"
+ * - `tool` (string): Either "search_materials" or "request_material_addition"
+ * - `args` (object): Parameters for the tool (e.g., {query, limit} or {topic, user_context})
+ *
+ * **Final response** - When the LLM has an answer for the user:
+ * - `type` (string): Always "final"
+ * - `message` (string): The response text to display to the user
+ * - `relatedMaterials` (array): List of material objects with {nodeId, name, type}
+ * - `suggestedActions` (array): List of suggested action strings
+ *
+ * @param {Array} messages - Message array in OpenAI format ({role, content}[])
+ * @returns {Promise<string>} Raw JSON string from the LLM
  */
 async function callHfChat(messages) {
   const client = getHfClient();

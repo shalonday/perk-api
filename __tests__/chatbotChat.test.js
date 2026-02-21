@@ -333,12 +333,13 @@ describe("POST /chatbot/chat Endpoint", () => {
 
       await chatbotChat(req, res);
 
-      // Should treat as final message (fallback behavior)
+      // Should return apology message when JSON parsing fails
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: "This is not valid JSON",
+          message:
+            "I apologize, but I encountered an error processing your request. The administrators have been notified and will investigate this issue. Please try again later or contact support if the problem persists.",
           relatedMaterials: [],
-          suggestedActions: [],
+          suggestedActions: ["try_again", "contact_support"],
         }),
       );
     });
