@@ -49,7 +49,7 @@ __tests__/
 
 3. **Hybrid Safety Check:**
    - Fast-path: Check against whitelist (instant).
-   - Slow-path: Query external safety API (Google Safe Browsing or similar) if not on whitelist.
+   - Slow-path: Query external safety API (URLhaus or similar) if not on whitelist.
    - Cache results for 24 hours to avoid repeated API calls.
 
 4. **Error Handling:**

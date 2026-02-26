@@ -45,7 +45,7 @@ The submission handler processes learning materials (URLs) submitted by users du
 
 - **Option B: URL Pattern & Malware Detection**
   - Check URL format validity (regex or URL parsing library).
-  - Query a malware/phishing detection service (e.g., Google Safe Browsing API, VirusTotal, URLhaus).
+  - Query a malware/phishing detection service (e.g., URLhaus, VirusTotal, PhishTank).
   - _Trade-off:_ More comprehensive, catches suspicious domains, but requires external API calls and rate limiting.
 
 - **Option C: Hybrid (Recommended)**
