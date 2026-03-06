@@ -31,7 +31,8 @@
     "http-errors": "~1.6.3",
     "jade": "^0.29.0",
     "morgan": "^1.10.1",
-    "neo4j-driver": "^5.14.0"
+    "neo4j-driver": "^5.14.0",
+    "puppeteer": "^24.37.5"
   },
   "devDependencies": {
     "eslint": "^9.39.2",
