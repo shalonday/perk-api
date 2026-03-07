@@ -10,9 +10,14 @@ const RateLimit = require("express-rate-limit");
 
 var app = express();
 
+// Parse allowed origins from environment variable or use defaults
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim())
+  : ["https://www.webbrainproject.org"];
+
 app.use(
   cors({
-    origin: "https://www.webbrainproject.org",
+    origin: allowedOrigins,
     methods: ["GET", "POST", "OPTIONS"],
   }),
 );
@@ -35,17 +40,9 @@ app.get(
   neo4jService.readPath,
 );
 
-app.post(
-  "/tree",
-  cors({ origin: "https://shalonday.github.io" }),
-  neo4jService.mergeTree,
-);
+app.post("/tree", cors({ origin: allowedOrigins }), neo4jService.mergeTree);
 
-app.post(
-  "/user",
-  cors({ origin: "https://www.webbrainproject.org" }),
-  neo4jService.createUser,
-);
+app.post("/user", cors({ origin: allowedOrigins }), neo4jService.createUser);
 
 app.set("trust proxy", 1);
 
