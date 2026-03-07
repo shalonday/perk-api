@@ -12,7 +12,7 @@ const app = express();
 
 app.use(
   cors({
-    origin: "https://www.webbrainproject.org",
+    origin: allowedOrigins,
     methods: ["GET", "POST", "OPTIONS"],
   }),
 );
