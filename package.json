@@ -8,9 +8,18 @@
   "scripts": {
     "start": "node ./bin/www",
     "devstart": "nodemon ./bin/www",
-    "serverstart": "DEBUG=perk-api:* npm run devstart"
+    "serverstart": "DEBUG=perk-api:* npm run devstart",
+    "generate-embeddings": "node scripts/generateEmbeddings.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{js,json,md}\""
   },
   "dependencies": {
+    "@huggingface/inference": "^4.13.11",
+    "@xenova/transformers": "^2.6.5",
     "compression": "^1.7.4",
     "cookie-parser": "~1.4.4",
     "cors": "^2.8.5",
@@ -20,8 +29,15 @@
     "express-rate-limit": "^7.1.5",
     "helmet": "^7.1.0",
     "http-errors": "~1.6.3",
-    "jade": "^0.31.2",
-    "morgan": "~1.9.1",
+    "jade": "^0.29.0",
+    "morgan": "^1.10.1",
     "neo4j-driver": "^5.14.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "jest": "^30.2.0",
+    "prettier": "^3.8.1"
   }
 }

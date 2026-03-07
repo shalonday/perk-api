@@ -1,14 +1,14 @@
-var createError = require("http-errors");
-var express = require("express");
-var path = require("path");
-var cookieParser = require("cookie-parser");
-var logger = require("morgan");
+const createError = require("http-errors");
+const express = require("express");
+const path = require("path");
+const cookieParser = require("cookie-parser");
+const logger = require("morgan");
 const cors = require("cors");
 const helmet = require("helmet");
 const compression = require("compression");
 const RateLimit = require("express-rate-limit");
 
-var app = express();
+const app = express();
 
 // Parse allowed origins from environment variable or use defaults
 const allowedOrigins = process.env.ALLOWED_ORIGINS
@@ -17,7 +17,7 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin: "https://www.webbrainproject.org",
     methods: ["GET", "POST", "OPTIONS"],
   }),
 );
@@ -32,17 +32,16 @@ app.use(express.static(path.join(__dirname, "public")));
 const neo4jService = require("./services/service");
 
 app.get("/tree", cors(), neo4jService.readUniversalTree);
-app.get("/search/:query", cors(), neo4jService.searchNodes);
-app.get("/nodes/:idsString", cors(), neo4jService.getNodesById); //a string of UUIDs separated by ,
-app.get(
-  "/pathStart/:startNode/pathEnd/:endNode",
+app.get("/paths/:startNodeId/:targetNodeId", cors(), neo4jService.readPath);
+
+// Chatbot endpoints
+app.post("/chatbot/chat", cors(), neo4jService.chatbotChat);
+app.post("/chatbot/search", cors(), neo4jService.chatbotSearch);
+app.post(
+  "/chatbot/material-request",
   cors(),
-  neo4jService.readPath,
+  neo4jService.chatbotMaterialRequest,
 );
-
-app.post("/tree", cors({ origin: allowedOrigins }), neo4jService.mergeTree);
-
-app.post("/user", cors({ origin: allowedOrigins }), neo4jService.createUser);
 
 app.set("trust proxy", 1);
 
@@ -55,12 +54,12 @@ const limiter = RateLimit({
 app.use(limiter);
 
 // catch 404 and forward to error handler
-app.use(function (req, res, next) {
+app.use((req, res, next) => {
   next(createError(404));
 });
 
 // error handler
-app.use(function (err, req, res, next) {
+app.use((err, req, res, next) => {
   // set locals, only providing error in development
   res.locals.message = err.message;
   res.locals.error = req.app.get("env") === "development" ? err : {};
