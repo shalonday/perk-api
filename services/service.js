@@ -57,9 +57,9 @@ async function readUniversalTree(req, res, next) {
 
   const prereqLinks = getPrerequisiteLinksTransaction.records.map((record) => {
     const link = {
-      source: record.get("s").properties.id,
-      target: record.get("u").properties.id,
-      id: record.get("r").properties.id,
+      uuid: record.get("r").properties.uuid,
+      source: record.get("s").properties.uuid,
+      target: record.get("u").properties.uuid,
     };
 
     return link;
@@ -71,9 +71,9 @@ async function readUniversalTree(req, res, next) {
 
   const teachesLinks = getTeachesLinksTransaction.records.map((record) => {
     const link = {
-      source: record.get("u").properties.id,
-      target: record.get("s").properties.id,
-      id: record.get("r").properties.id,
+      uuid: record.get("r").properties.uuid,
+      source: record.get("u").properties.uuid,
+      target: record.get("s").properties.uuid,
     };
 
     return link;
@@ -99,26 +99,21 @@ async function readPath(req, res, next) {
 
   const pathTransaction = await session.executeRead((tx) => {
     return tx.run(
-      `MATCH p=({id: "${startNodeId}"})-[*]->({id:"${targetNodeId}"})
-      UNWIND relationships(p) AS relationshipsWithCopies
-      UNWIND nodes(p) AS nodesWithCopies
-      RETURN collect(distinct relationshipsWithCopies) as relationships, collect(distinct nodesWithCopies) as nodes`,
+      `MATCH p=({uuid: "${startNodeId}"})-[*]->({uuid:"${targetNodeId}"})
+      WITH nodes(p) as pathNodes, relationships(p) as pathRels
+      UNWIND pathNodes as n
+      UNWIND pathRels as r
+      WITH collect(distinct n) as distinctNodes, 
+           collect({uuid: r.uuid, source: startNode(r).uuid, target: endNode(r).uuid}) as distinctLinks
+      RETURN distinctNodes, distinctLinks`,
     );
   });
 
-  // the pathTransaction only returns one record, which can be accessed with
-  // records[0]. It contains one "nodes" array and one "relationships" array.
-  const nodesWithInternalData = pathTransaction.records[0].get("nodes");
+  const nodes = pathTransaction.records[0]
+    .get("distinctNodes")
+    .map((node) => node.properties);
 
-  const nodes = nodesWithInternalData.map((node) => {
-    const nodeData = node.properties;
-    nodeData.type = node.labels[0].toLowerCase();
-    return nodeData;
-  });
-
-  const links = pathTransaction.records[0].get("relationships").map((link) => {
-    return getD3CompatibleLink(link, nodesWithInternalData);
-  });
+  const links = pathTransaction.records[0].get("distinctLinks");
 
   res.json({
     nodes: nodes,
