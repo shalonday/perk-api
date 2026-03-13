@@ -7,10 +7,20 @@ const {
   callHfChat,
   parseLlmResponse,
 } = require("./chatbot/llmOrchestrator");
-const { getD3CompatibleLink } = require("./neo4j/neo4jHelpers");
 const { searchNodesBySimilarity } = require("./embeddings/searchService");
 
 let driver;
+
+function normalizeGraphNodes(nodes, fallbackType) {
+  return nodes.map((node) => {
+    const type = node.type ?? fallbackType;
+
+    return {
+      ...node,
+      ...(type ? { type } : {}),
+    };
+  });
+}
 
 async function initDriver() {
   try {
@@ -35,19 +45,19 @@ async function readUniversalTree(req, res, next) {
     return tx.run("MATCH (s:Skill) RETURN s");
   });
 
-  const skills = getSkillsTransaction.records.map(
-    (record) => record.get("s").properties,
+  const skills = normalizeGraphNodes(
+    getSkillsTransaction.records.map((record) => record.get("s").properties),
+    "skill",
   );
-  skills.map((skill) => (skill.type = "skill"));
 
   const getURLsTransaction = await session.executeRead((tx) => {
     return tx.run("MATCH (u:URL) RETURN u");
   });
 
-  const urls = getURLsTransaction.records.map(
-    (record) => record.get("u").properties,
+  const urls = normalizeGraphNodes(
+    getURLsTransaction.records.map((record) => record.get("u").properties),
+    "url",
   );
-  urls.map((url) => (url.type = "url"));
 
   const getPrerequisiteLinksTransaction = await session.executeRead((tx) => {
     return tx.run(
@@ -103,15 +113,22 @@ async function readPath(req, res, next) {
       WITH nodes(p) as pathNodes, relationships(p) as pathRels
       UNWIND pathNodes as n
       UNWIND pathRels as r
-      WITH collect(distinct n) as distinctNodes, 
+      WITH collect(distinct n {
+             .*,
+             type: CASE
+               WHEN "Skill" IN labels(n) THEN "skill"
+               WHEN "URL" IN labels(n) THEN "url"
+               ELSE n.type
+             END
+           }) as distinctNodes,
            collect({uuid: r.uuid, source: startNode(r).uuid, target: endNode(r).uuid}) as distinctLinks
       RETURN distinctNodes, distinctLinks`,
     );
   });
 
-  const nodes = pathTransaction.records[0]
-    .get("distinctNodes")
-    .map((node) => node.properties);
+  const nodes = normalizeGraphNodes(
+    pathTransaction.records[0].get("distinctNodes"),
+  );
 
   const links = pathTransaction.records[0].get("distinctLinks");
 
