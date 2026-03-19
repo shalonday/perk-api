@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 const createError = require("http-errors");
 const express = require("express");
 const path = require("path");
@@ -31,17 +33,13 @@ app.use(express.static(path.join(__dirname, "public")));
 
 const neo4jService = require("./services/service");
 
-app.get("/tree", cors(), neo4jService.readUniversalTree);
-app.get("/paths/:startNodeId/:targetNodeId", cors(), neo4jService.readPath);
+app.get("/tree", neo4jService.readUniversalTree);
+app.get("/paths/:startNodeId/:targetNodeId", neo4jService.readPath);
 
 // Chatbot endpoints
-app.post("/chatbot/chat", cors(), neo4jService.chatbotChat);
-app.post("/chatbot/search", cors(), neo4jService.chatbotSearch);
-app.post(
-  "/chatbot/material-request",
-  cors(),
-  neo4jService.chatbotMaterialRequest,
-);
+app.post("/chatbot/chat", neo4jService.chatbotChat);
+app.post("/chatbot/search", neo4jService.chatbotSearch);
+app.post("/chatbot/material-request", neo4jService.chatbotMaterialRequest);
 
 app.set("trust proxy", 1);
 
