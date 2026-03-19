@@ -72,12 +72,12 @@ async function fetchNodesWithoutEmbeddings() {
       return tx.run(`
         MATCH (n:Skill|URL)
         WHERE n.embedding IS NULL
-        RETURN n.id as id, n.name as name, labels(n)[0] as type
+        RETURN n.uuid as uuid, n.name as name, labels(n)[0] as type
       `);
     });
 
     const nodes = result.records.map((record) => ({
-      id: record.get("id"),
+      uuid: record.get("uuid"),
       name: record.get("name"),
       type: record.get("type"),
     }));
@@ -91,17 +91,17 @@ async function fetchNodesWithoutEmbeddings() {
 /**
  * Update node with embedding
  */
-async function updateNodeEmbedding(id, embedding) {
+async function updateNodeEmbedding(uuid, embedding) {
   const session = driver.session();
   try {
     await session.executeWrite((tx) => {
       return tx.run(
         `
-        MATCH (n {id: $id})
+        MATCH (n {uuid: $uuid})
         SET n.embedding = $embedding
         RETURN n
         `,
-        { id, embedding },
+        { uuid, embedding },
       );
     });
   } finally {
@@ -192,7 +192,9 @@ async function main() {
 
       // Update each node
       await Promise.all(
-        batch.map((node, idx) => updateNodeEmbedding(node.id, embeddings[idx])),
+        batch.map((node, idx) =>
+          updateNodeEmbedding(node.uuid, embeddings[idx]),
+        ),
       );
 
       processedCount += batch.length;
