@@ -12,14 +12,9 @@ const RateLimit = require("express-rate-limit");
 
 const app = express();
 
-// Parse allowed origins from environment variable or use defaults
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim())
-  : ["https://www.webbrainproject.org"];
-
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin: true,
     methods: ["GET", "POST", "OPTIONS"],
   }),
 );
