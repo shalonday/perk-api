@@ -14,7 +14,6 @@
 
 require("dotenv").config();
 const neo4j = require("neo4j-driver");
-const { pipeline } = require("@xenova/transformers");
 
 // Configuration
 const BATCH_SIZE = 10;
@@ -168,7 +167,8 @@ async function main() {
     console.log(`\nInitializing embedding model: ${MODEL}`);
     console.log(`(This may take a moment on first run...)\n`);
 
-    // Initialize the embedding pipeline
+    // Initialize the embedding pipeline (dynamic import for ESM package)
+    const { pipeline } = await import("@xenova/transformers");
     const extractor = await pipeline("feature-extraction", MODEL);
 
     // Fetch nodes without embeddings

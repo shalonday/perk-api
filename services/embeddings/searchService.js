@@ -7,6 +7,17 @@
  * Search for nodes using semantic similarity.
  * Fetches all nodes with embeddings, computes similarity with query, and returns top results.
  */
+async function loadPipeline() {
+  // Jest runs tests in a CJS VM context where dynamic import requires an extra
+  // node flag. Use the mocked CJS require path in tests, and dynamic import at runtime.
+  if (process.env.JEST_WORKER_ID) {
+    return require("@xenova/transformers").pipeline;
+  }
+
+  const { pipeline } = await import("@xenova/transformers");
+  return pipeline;
+}
+
 async function searchNodesBySimilarity(driver, query, limit = 5) {
   const session = driver.session();
 
@@ -35,8 +46,8 @@ async function searchNodesBySimilarity(driver, query, limit = 5) {
       };
     }
 
-    // Import the embedding generator to get query embedding
-    const { pipeline } = require("@xenova/transformers");
+    // Load embedding pipeline (supports ESM runtime + Jest test environment)
+    const pipeline = await loadPipeline();
     const extractor = await pipeline(
       "feature-extraction",
       "Xenova/all-MiniLM-L6-v2",

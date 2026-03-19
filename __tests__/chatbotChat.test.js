@@ -72,12 +72,13 @@ describe("POST /chatbot/chat Endpoint", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockChatCompletion.mockClear();
+    mockChatCompletion.mockReset();
 
     // Setup mock Neo4j session
     const neo4j = require("neo4j-driver");
     const mockDriver = neo4j.driver();
     mockSession = mockDriver.session();
+    mockSession.executeRead.mockReset();
 
     // Setup mock Express req/res
     req = createReq();

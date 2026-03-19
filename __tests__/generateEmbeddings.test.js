@@ -178,7 +178,7 @@ describe("Embedding Generation Script", () => {
     expect(mockSession.executeWrite).toHaveBeenCalled();
     expect(mockTx.run).toHaveBeenCalledWith(
       expect.stringContaining("SET n.embedding"),
-      expect.objectContaining({ id: nodeId }),
+      expect.objectContaining({ uuid: nodeId }),
     );
   });
 
