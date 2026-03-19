@@ -18,7 +18,7 @@ async function searchNodesBySimilarity(driver, query, limit = 5) {
         MATCH (n:Skill|URL)
         WHERE n.embedding IS NOT NULL
         RETURN {
-          id: n.id,
+          uuid: n.uuid,
           name: n.name,
           type: labels(n)[0]
         } as node,

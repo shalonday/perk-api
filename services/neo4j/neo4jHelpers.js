@@ -11,7 +11,7 @@ function buildQueryForMatchingNodesById(array) {
   let returnString = "RETURN";
 
   for (let i = 0; i < array.length; i++) {
-    queryString += `MATCH (n_${i} {id: "${array[i]}"}) `;
+    queryString += `MATCH (n_${i} {uuid: "${array[i]}"}) `;
     if (i < array.length - 1) returnString += ` n_${i},`;
     else returnString += ` n_${i}`;
   }
@@ -37,15 +37,15 @@ function getD3CompatibleLink(link, nodesWithInternalData) {
   // iterate through the nodes to find the source and target
   nodesWithInternalData.forEach((node) => {
     if (node.identity.toString() === startNodeInternalId) {
-      mySourceUuid = node.properties.id;
+      mySourceUuid = node.properties.uuid;
     }
     if (node.identity.toString() === endNodeInternalId) {
-      myTargetUuid = node.properties.id;
+      myTargetUuid = node.properties.uuid;
     }
   });
 
   const rel = {
-    id: link.properties.id,
+    id: link.properties.uuid,
     source: mySourceUuid,
     target: myTargetUuid,
   };

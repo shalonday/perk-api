@@ -103,16 +103,16 @@ describe("Embedding Generation Script", () => {
 
   test("should fetch nodes without embeddings", async () => {
     const mockNodes = [
-      { id: "uuid-1", name: "JavaScript", type: "Skill" },
-      { id: "uuid-2", name: "Python", type: "Skill" },
-      { id: "uuid-3", name: "MDN Docs", type: "URL" },
+      { uuid: "uuid-1", name: "JavaScript", type: "Skill" },
+      { uuid: "uuid-2", name: "Python", type: "Skill" },
+      { uuid: "uuid-3", name: "MDN Docs", type: "URL" },
     ];
 
     mockTx.run.mockResolvedValue({
       records: mockNodes.map((node) => ({
         get: jest
           .fn()
-          .mockReturnValueOnce(node.id)
+          .mockReturnValueOnce(node.uuid)
           .mockReturnValueOnce(node.name)
           .mockReturnValueOnce(node.type),
       })),
@@ -124,7 +124,7 @@ describe("Embedding Generation Script", () => {
         `
         MATCH (n:Skill|URL)
         WHERE n.embedding IS NULL
-        RETURN n.id as id, n.name as name, labels(n)[0] as type
+        RETURN n.uuid as uuid, n.name as name, labels(n)[0] as type
       `,
       );
     });
@@ -138,7 +138,7 @@ describe("Embedding Generation Script", () => {
   test("should batch process nodes", async () => {
     const BATCH_SIZE = 10;
     const mockNodes = Array.from({ length: 25 }, (_, i) => ({
-      id: `uuid-${i}`,
+      uuid: `uuid-${i}`,
       name: `Node ${i}`,
       type: "Skill",
     }));
@@ -161,17 +161,17 @@ describe("Embedding Generation Script", () => {
     for (let i = 0; i < 384; i++) embedding[i] = 0.1;
 
     mockTx.run.mockResolvedValue({
-      records: [{ get: jest.fn().mockReturnValue({ id: nodeId }) }],
+      records: [{ get: jest.fn().mockReturnValue({ uuid: nodeId }) }],
     });
 
     await mockSession.executeWrite((tx) => {
       return tx.run(
         `
-        MATCH (n {id: $id})
+        MATCH (n {uuid: $uuid})
         SET n.embedding = $embedding
         RETURN n
       `,
-        { id: nodeId, embedding: Array.from(embedding) },
+        { uuid: nodeId, embedding: Array.from(embedding) },
       );
     });
 
