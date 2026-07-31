@@ -109,7 +109,8 @@ async function readPath(req, res, next) {
 
   const pathTransaction = await session.executeRead((tx) => {
     return tx.run(
-      `MATCH p=({uuid: "${startNodeId}"})-[*]->({uuid:"${targetNodeId}"})
+      `MATCH p=({uuid: "${startNodeId}"})-[*1..10]->({uuid:"${targetNodeId}"})
+      WHERE size(nodes(p)) = size(apoc.coll.toSet(nodes(p)))
       WITH nodes(p) as pathNodes, relationships(p) as pathRels
       UNWIND pathNodes as n
       UNWIND pathRels as r
@@ -132,10 +133,7 @@ async function readPath(req, res, next) {
 
   const links = pathTransaction.records[0].get("distinctLinks");
 
-  res.json({
-    nodes: nodes,
-    links: links,
-  });
+  res.json({ nodes, links });
 
   session.close();
 }
