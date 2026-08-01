@@ -112,8 +112,7 @@ async function readPath(req, res, next) {
   const session = driver.session();
 
   const pathTransaction = await session.executeRead((tx) => {
-    return tx.run(
-      `MATCH p=({uuid: "${startNodeId}"})-[*1..10]->({uuid:"${targetNodeId}"})
+    const query = `MATCH p=({uuid: $startNodeId})-[*1..10]->({uuid: $targetNodeId})
       WHERE size(nodes(p)) = size(apoc.coll.toSet(nodes(p)))
       WITH nodes(p) as pathNodes, relationships(p) as pathRels
       UNWIND pathNodes as n
@@ -127,8 +126,9 @@ async function readPath(req, res, next) {
              END
            }) as distinctNodes,
            collect({uuid: r.uuid, source: startNode(r).uuid, target: endNode(r).uuid}) as distinctLinks
-      RETURN distinctNodes, distinctLinks`,
-    );
+      RETURN distinctNodes, distinctLinks`;
+
+    return tx.run(query, { startNodeId, targetNodeId });
   });
 
   const nodes = normalizeGraphNodes(
