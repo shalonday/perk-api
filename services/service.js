@@ -1,6 +1,10 @@
 const neo4j = require("neo4j-driver");
 require("dotenv").config();
 
+// Default start node id used for shortest-path queries when none provided.
+// Matches frontend `DEFAULT_START_NODE_ID` in webbrainproject-ts (the "E" entry node).
+const DEFAULT_START_NODE_ID = "20c37849-697e-4121-b048-f81a0c47aebd";
+
 // Import extracted modules
 const {
   buildMessages,
@@ -136,6 +140,52 @@ async function readPath(req, res, next) {
   res.json({ nodes, links });
 
   session.close();
+}
+
+async function readShortestPath(req, res, next) {
+  const targetNodeId = req.params.targetNodeId;
+  const startNodeId = req.params.startNodeId ?? DEFAULT_START_NODE_ID;
+  const session = driver.session();
+
+  try {
+    const pathTransaction = await session.executeRead((tx) => {
+      return tx.run(
+        `MATCH p = shortestPath((start {uuid: $startNodeId})-[*]->(target {uuid: $targetNodeId}))
+        WITH nodes(p) AS pathNodes, relationships(p) AS pathRels
+        UNWIND pathNodes AS n
+        UNWIND pathRels AS r
+        WITH collect(distinct n {
+               .*,
+               type: CASE
+                 WHEN "Skill" IN labels(n) THEN "skill"
+                 WHEN "URL" IN labels(n) THEN "url"
+                 ELSE n.type
+               END
+             }) AS distinctNodes,
+             collect({uuid: r.uuid, source: startNode(r).uuid, target: endNode(r).uuid}) AS distinctLinks
+        RETURN distinctNodes, distinctLinks`,
+        {
+          startNodeId,
+          targetNodeId,
+        },
+      );
+    });
+
+    if (!pathTransaction.records?.length) {
+      res.status(404).json({ error: "No shortest path found" });
+      return;
+    }
+
+    const nodes = normalizeGraphNodes(
+      pathTransaction.records[0].get("distinctNodes"),
+    );
+
+    const links = pathTransaction.records[0].get("distinctLinks");
+
+    res.json({ nodes, links });
+  } finally {
+    session.close();
+  }
 }
 
 /**
@@ -390,6 +440,7 @@ async function chatbotChat(req, res) {
 module.exports = {
   readUniversalTree,
   readPath,
+  readShortestPath,
   chatbotSearch,
   chatbotMaterialRequest,
   chatbotChat,

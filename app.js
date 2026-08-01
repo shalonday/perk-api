@@ -30,6 +30,10 @@ const neo4jService = require("./services/service");
 
 app.get("/tree", neo4jService.readUniversalTree);
 app.get("/paths/:startNodeId/:targetNodeId", neo4jService.readPath);
+app.get(
+  "/shortestPath/:startNodeId/:targetNodeId",
+  neo4jService.readShortestPath,
+);
 
 // Chatbot endpoints
 app.post("/chatbot/chat", neo4jService.chatbotChat);
