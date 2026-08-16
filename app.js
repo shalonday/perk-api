@@ -11,6 +11,7 @@ const compression = require("compression");
 const RateLimit = require("express-rate-limit");
 
 const app = express();
+const { isAllowedDomain } = require("./services/ingest/scraperConfig");
 
 app.use(
   cors({
@@ -39,6 +40,45 @@ app.get(
 app.post("/chatbot/chat", neo4jService.chatbotChat);
 app.post("/chatbot/search", neo4jService.chatbotSearch);
 app.post("/chatbot/material-request", neo4jService.chatbotMaterialRequest);
+
+app.post("/ingest/analyze", (req, res) => {
+  const { url } = req.body ?? {};
+
+  console.log(url);
+
+  if (!url || typeof url !== "string" || !url.trim()) {
+    return res.status(400).json({ error: "Please provide a valid URL." });
+  }
+
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(url);
+  } catch {
+    return res.status(400).json({ error: "Please provide a valid URL." });
+  }
+
+  console.log("parsedUrl", parsedUrl);
+
+  if (
+    !parsedUrl.protocol ||
+    !["http:", "https:"].includes(parsedUrl.protocol)
+  ) {
+    return res.status(400).json({ error: "Please provide a valid URL." });
+  }
+
+  if (!isAllowedDomain(parsedUrl.hostname)) {
+    return res.status(400).json({
+      error:
+        "URL domain is not allowed for ingestion. Please use one of the approved learning sites.",
+    });
+  }
+
+  return res.status(200).json({
+    url: parsedUrl.toString(),
+    prerequisites: [],
+    objectives: [],
+  });
+});
 
 app.set("trust proxy", 1);
 
