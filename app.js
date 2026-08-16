@@ -61,9 +61,10 @@ app.post("/ingest/analyze", (req, res) => {
 
   if (
     !parsedUrl.protocol ||
-    !["http:", "https:"].includes(parsedUrl.protocol)
+    parsedUrl.protocol !== "https:" ||
+    !parsedUrl.hostname
   ) {
-    return res.status(400).json({ error: "Please provide a valid URL." });
+    return res.status(400).json({ error: "Please provide a valid HTTPS URL." });
   }
 
   if (!isAllowedDomain(parsedUrl.hostname)) {
