@@ -9,6 +9,14 @@ jest.mock("../services/service", () => ({
   chatbotMaterialRequest: jest.fn(),
 }));
 
+// Mocks an internal dependency of /ingest/analyze
+jest.mock("../services/ingest/scraper", () => ({
+  scrapeContent: jest.fn().mockResolvedValue({
+    content: "JavaScript is a programming language for the web.",
+    title: "JavaScript Guide",
+  }),
+}));
+
 describe("POST /ingest/analyze whitelist gate", () => {
   let app;
 

@@ -12,6 +12,7 @@ const RateLimit = require("express-rate-limit");
 
 const app = express();
 const { isAllowedDomain } = require("./services/ingest/scraperConfig");
+const { scrapeContent } = require("./services/ingest/scraper");
 
 app.use(
   cors({
@@ -41,10 +42,8 @@ app.post("/chatbot/chat", neo4jService.chatbotChat);
 app.post("/chatbot/search", neo4jService.chatbotSearch);
 app.post("/chatbot/material-request", neo4jService.chatbotMaterialRequest);
 
-app.post("/ingest/analyze", (req, res) => {
+app.post("/ingest/analyze", async (req, res) => {
   const { url } = req.body ?? {};
-
-  console.log(url);
 
   if (!url || typeof url !== "string" || !url.trim()) {
     return res.status(400).json({ error: "Please provide a valid URL." });
@@ -56,8 +55,6 @@ app.post("/ingest/analyze", (req, res) => {
   } catch {
     return res.status(400).json({ error: "Please provide a valid URL." });
   }
-
-  console.log("parsedUrl", parsedUrl);
 
   if (
     !parsedUrl.protocol ||
@@ -74,11 +71,24 @@ app.post("/ingest/analyze", (req, res) => {
     });
   }
 
-  return res.status(200).json({
-    url: parsedUrl.toString(),
-    prerequisites: [],
-    objectives: [],
-  });
+  try {
+    const pageData = await scrapeContent(parsedUrl.toString());
+
+    return res.status(200).json({
+      url: parsedUrl.toString(),
+      title: pageData.title,
+      content: pageData.content,
+      prerequisites: [],
+      objectives: [],
+    });
+  } catch (error) {
+    return res.status(400).json({
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to load the page for ingestion.",
+    });
+  }
 });
 
 app.set("trust proxy", 1);
