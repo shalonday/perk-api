@@ -24,6 +24,35 @@ function isKhanAcademyUrl(url) {
   );
 }
 
+/**
+ * Best-effort dismissal of Khan Academy cookie banners.
+ *
+ * @param {object} page - Playwright page containing the rendered Khan Academy page.
+ * @returns {Promise<void>} Resolves after the available cookie action is attempted.
+ */
+async function dismissCookieBanner(page) {
+  if (!page || typeof page.getByRole !== "function") {
+    return;
+  }
+
+  // Try the broad consent action first, then use the necessary-only option.
+  const cookieButtons = [/Accept All Cookies/i, /Strictly Necessary Only/i];
+
+  for (const buttonName of cookieButtons) {
+    console.log(`Attempting to click cookie banner button: ${buttonName}`);
+    try {
+      await page.getByRole("button", { name: buttonName }).click({
+        timeout: 3000,
+      });
+      // A successful click means the banner is handled; no second click is needed.
+      return;
+    } catch {
+      // The banner may be absent or the button may no longer be interactive.
+    }
+  }
+}
+
 module.exports = {
+  dismissCookieBanner,
   isKhanAcademyUrl,
 };

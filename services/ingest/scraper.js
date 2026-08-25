@@ -1,5 +1,8 @@
 const { chromium } = require("playwright");
-const { isKhanAcademyUrl } = require("./extractors/khanAcademyExtractor");
+const {
+  dismissCookieBanner,
+  isKhanAcademyUrl,
+} = require("./extractors/khanAcademyExtractor");
 
 /**
  * Loads a page with a real browser and extracts the main readable text.
@@ -52,6 +55,10 @@ async function scrapeContent(url) {
 
     if (!response || response.status() >= 400) {
       throw new Error("Unable to load the page for ingestion.");
+    }
+
+    if (isKhanAcademyUrl(parsedUrl)) {
+      await dismissCookieBanner(page);
     }
 
     const title = await page.title().catch(() => "");
