@@ -59,4 +59,79 @@ describe("scrapeContent", () => {
       scrapeContent("https://example.com/blocked-page"),
     ).rejects.toThrow("Unable to load the page");
   });
+
+  test("uses networkidle for Khan Academy pages", async () => {
+    const page = {
+      goto: jest.fn().mockResolvedValue({ status: () => 200 }),
+      title: jest.fn().mockResolvedValue("Khan Academy"),
+      evaluate: jest.fn().mockResolvedValue("Rendered Khan content"),
+    };
+
+    chromium.launch.mockResolvedValue({
+      newPage: jest.fn().mockResolvedValue(page),
+      close: jest.fn().mockResolvedValue(undefined),
+    });
+
+    await scrapeContent("https://www.khanacademy.org/math");
+
+    expect(page.goto).toHaveBeenCalledTimes(1);
+    expect(page.goto).toHaveBeenCalledWith("https://www.khanacademy.org/math", {
+      waitUntil: "networkidle",
+      timeout: 45000,
+    });
+  });
+
+  test("falls back to domcontentloaded when Khan navigation times out", async () => {
+    const page = {
+      goto: jest
+        .fn()
+        .mockRejectedValueOnce(
+          Object.assign(new Error("timed out"), {
+            name: "TimeoutError",
+          }),
+        )
+        .mockResolvedValueOnce({ status: () => 200 }),
+      title: jest.fn().mockResolvedValue("Khan Academy"),
+      evaluate: jest.fn().mockResolvedValue("Rendered Khan content"),
+    };
+
+    chromium.launch.mockResolvedValue({
+      newPage: jest.fn().mockResolvedValue(page),
+      close: jest.fn().mockResolvedValue(undefined),
+    });
+
+    await scrapeContent("https://www.khanacademy.org/math");
+
+    expect(page.goto).toHaveBeenNthCalledWith(
+      1,
+      "https://www.khanacademy.org/math",
+      { waitUntil: "networkidle", timeout: 45000 },
+    );
+    expect(page.goto).toHaveBeenNthCalledWith(
+      2,
+      "https://www.khanacademy.org/math",
+      { waitUntil: "domcontentloaded", timeout: 45000 },
+    );
+  });
+
+  test("uses one domcontentloaded navigation for non-Khan pages", async () => {
+    const page = {
+      goto: jest.fn().mockResolvedValue({ status: () => 200 }),
+      title: jest.fn().mockResolvedValue("Example"),
+      evaluate: jest.fn().mockResolvedValue("Example content"),
+    };
+
+    chromium.launch.mockResolvedValue({
+      newPage: jest.fn().mockResolvedValue(page),
+      close: jest.fn().mockResolvedValue(undefined),
+    });
+
+    await scrapeContent("https://example.com/lesson");
+
+    expect(page.goto).toHaveBeenCalledTimes(1);
+    expect(page.goto).toHaveBeenCalledWith("https://example.com/lesson", {
+      waitUntil: "domcontentloaded",
+      timeout: 30000,
+    });
+  });
 });

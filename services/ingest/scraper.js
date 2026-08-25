@@ -1,4 +1,5 @@
 const { chromium } = require("playwright");
+const { isKhanAcademyUrl } = require("./extractors/khanAcademyExtractor");
 
 /**
  * Loads a page with a real browser and extracts the main readable text.
@@ -25,10 +26,29 @@ async function scrapeContent(url) {
   try {
     const page = await browser.newPage();
 
-    const response = await page.goto(parsedUrl.toString(), {
-      waitUntil: "domcontentloaded",
-      timeout: 30000,
-    });
+    let response;
+    if (isKhanAcademyUrl(parsedUrl)) {
+      try {
+        response = await page.goto(parsedUrl.toString(), {
+          waitUntil: "networkidle",
+          timeout: 45000,
+        });
+      } catch (error) {
+        if (error?.name !== "TimeoutError") {
+          throw error;
+        }
+
+        response = await page.goto(parsedUrl.toString(), {
+          waitUntil: "domcontentloaded",
+          timeout: 45000,
+        });
+      }
+    } else {
+      response = await page.goto(parsedUrl.toString(), {
+        waitUntil: "domcontentloaded",
+        timeout: 30000,
+      });
+    }
 
     if (!response || response.status() >= 400) {
       throw new Error("Unable to load the page for ingestion.");
