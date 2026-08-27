@@ -11,8 +11,7 @@ const compression = require("compression");
 const RateLimit = require("express-rate-limit");
 
 const app = express();
-const { isAllowedDomain } = require("./services/ingest/scraperConfig");
-const { scrapeContent } = require("./services/ingest/scraper");
+const ingestService = require("./services/ingest/service");
 
 app.use(
   cors({
@@ -42,54 +41,7 @@ app.post("/chatbot/chat", neo4jService.chatbotChat);
 app.post("/chatbot/search", neo4jService.chatbotSearch);
 app.post("/chatbot/material-request", neo4jService.chatbotMaterialRequest);
 
-app.post("/ingest/analyze", async (req, res) => {
-  const { url } = req.body ?? {};
-
-  if (!url || typeof url !== "string" || !url.trim()) {
-    return res.status(400).json({ error: "Please provide a valid URL." });
-  }
-
-  let parsedUrl;
-  try {
-    parsedUrl = new URL(url);
-  } catch {
-    return res.status(400).json({ error: "Please provide a valid URL." });
-  }
-
-  if (
-    !parsedUrl.protocol ||
-    parsedUrl.protocol !== "https:" ||
-    !parsedUrl.hostname
-  ) {
-    return res.status(400).json({ error: "Please provide a valid HTTPS URL." });
-  }
-
-  if (!isAllowedDomain(parsedUrl.hostname)) {
-    return res.status(400).json({
-      error:
-        "URL domain is not allowed for ingestion. Please use one of the approved learning sites.",
-    });
-  }
-
-  try {
-    const pageData = await scrapeContent(parsedUrl.toString());
-    console.log("Scraped page data:", pageData);
-    return res.status(200).json({
-      url: parsedUrl.toString(),
-      title: pageData.title,
-      content: pageData.content,
-      prerequisites: [],
-      objectives: [],
-    });
-  } catch (error) {
-    return res.status(400).json({
-      error:
-        error instanceof Error
-          ? error.message
-          : "Unable to load the page for ingestion.",
-    });
-  }
-});
+app.post("/ingest/analyze", ingestService.analyzeIngest);
 
 app.set("trust proxy", 1);
 
