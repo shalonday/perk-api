@@ -1,6 +1,6 @@
 const { normalizeHostname } = require("../scraperConfig");
 
-const TRANSCRIPT_START_MARKERS = ["video transcript", "transcript"];
+const TRANSCRIPT_START_MARKERS = ["transcript"];
 const SUMMARY_START_MARKERS = ["abouttranscript", "about transcript"];
 const TRANSCRIPT_END_MARKERS = [
   "creative commons attribution",
@@ -48,21 +48,28 @@ function extractTranscriptOrBody(text, url) {
   }
 
   const lowerLines = lines.map((line) => line.toLowerCase());
-  const transcriptIndex = lowerLines.findIndex(
-    (line) =>
-      line === "video transcript" ||
-      TRANSCRIPT_START_MARKERS.some((marker) => line.includes(marker)) ||
-      SUMMARY_START_MARKERS.some((marker) => line.includes(marker)),
+  const exactTranscriptIndex = lowerLines.findIndex(
+    (line) => line === "transcript",
   );
-  const transcriptUsed = transcriptIndex >= 0;
-  const startIndex = transcriptUsed ? transcriptIndex + 1 : 0;
+  const transcriptIndex =
+    exactTranscriptIndex >= 0
+      ? exactTranscriptIndex
+      : lowerLines.findIndex((line) =>
+          TRANSCRIPT_START_MARKERS.some((marker) => line.includes(marker)),
+        );
+  const summaryIndex = lowerLines.findIndex((line) =>
+    SUMMARY_START_MARKERS.some((marker) => line.includes(marker)),
+  );
+  const startIndex = transcriptIndex >= 0 ? transcriptIndex : summaryIndex;
+  const transcriptUsed = startIndex >= 0;
+  const bodyStartIndex = transcriptUsed ? startIndex + 1 : 0;
   const endMarkers =
     typeof url === "string" && url.includes("/a/")
       ? ARTICLE_ONLY_END_MARKERS
       : TRANSCRIPT_END_MARKERS;
   const bodyLines = [];
 
-  for (let index = startIndex; index < lines.length; index += 1) {
+  for (let index = bodyStartIndex; index < lines.length; index += 1) {
     const lowerLine = lowerLines[index];
     if (endMarkers.some((marker) => lowerLine.includes(marker))) {
       break;
@@ -165,7 +172,6 @@ async function dismissCookieBanner(page) {
   const cookieButtons = [/Accept All Cookies/i, /Strictly Necessary Only/i];
 
   for (const buttonName of cookieButtons) {
-    console.log(`Attempting to click cookie banner button: ${buttonName}`);
     try {
       await page.getByRole("button", { name: buttonName }).click({
         timeout: 3000,

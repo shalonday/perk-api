@@ -27,11 +27,11 @@ changes to whitelist gating, LLM extraction, canonicalization, or the commit flo
 
 **File:** `perk-api/services/ingest/extractors/khanAcademyExtractor.js`
 
-Port these marker constants verbatim from the Python source (same strings, same
-matching semantics — case-insensitive substring matching against normalized lines):
+Use these marker constants for the visible rendered text (case-insensitive substring
+matching against normalized lines):
 
 ```js
-const TRANSCRIPT_START_MARKERS = ["video transcript", "transcript"];
+const TRANSCRIPT_START_MARKERS = ["transcript"];
 
 const SUMMARY_START_MARKERS = ["abouttranscript", "about transcript"];
 
@@ -85,8 +85,8 @@ const BOILERPLATE_LINE_MARKERS = [
      drop empty lines, then dedupe consecutive identical lines (equivalent to
      `_dedupe_consecutive`).
   2. **Locate a transcript section**, in this priority order:
-     - a line that _exactly_ equals `"video transcript"` (case-insensitive, after
-       trimming) — exact match, not substring;
+     - a line that _exactly_ equals `"transcript"` (case-insensitive, after
+       trimming) — this is the visible transcript heading;
      - otherwise, the first line matching any of `TRANSCRIPT_START_MARKERS` via
        case-insensitive substring match;
      - otherwise, the first line matching any of `SUMMARY_START_MARKERS` via
@@ -173,10 +173,11 @@ already used in `scraperConfig.js` and `scraper.js`.
    - This creates a stable list of transcript-like lines that the next stage can scan.
 
 6. **Search for transcript markers in order**
-   - Look for an exact `"video transcript"` line first.
-   - If not found, scan for the transcript start markers.
-   - If still not found, scan for the summary-style `about transcript` markers.
-   - If none are found, continue to the generic main-body fallback path.
+
+- Look for an exact `"transcript"` line first.
+- If not found, scan for the transcript start markers.
+- If still not found, scan for the summary-style `about transcript` markers.
+- If none are found, continue to the generic main-body fallback path.
 
 7. **Extract the transcript body between the start and end markers**
    - Start after the first recognized transcript header.
@@ -229,6 +230,51 @@ already used in `scraperConfig.js` and `scraper.js`.
 - Do not change the function signature, return shape, or error handling for invalid
   URLs — only the internal navigation/extraction branches change.
 
+### Substeps in request flow order
+
+1. **Import the Khan extractor utilities**
+   - Add imports for `isKhanAcademyUrl` and `extractKhanAcademyPage` from
+     `./extractors/khanAcademyExtractor`.
+   - These are the two key functions needed to detect and handle Khan URLs.
+
+2. **Determine Khan URL before navigation**
+   - Call `isKhanAcademyUrl(parsedUrl)` on the parsed URL before invoking `page.goto`.
+   - Store the result in a variable to reuse for both navigation and extraction branching.
+   - This allows the function to make different navigation choices based on URL type.
+
+3. **Implement Khan-specific navigation with fallback**
+   - For Khan URLs: attempt `page.goto(url, { waitUntil: "networkidle", timeout: 45000 })`
+     first to ensure React hydration completes.
+   - Catch `TimeoutError` from the `networkidle` attempt and retry once with
+     `page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 })` as fallback.
+   - This two-tier strategy handles cases where the network remains busy after hydration.
+
+4. **Implement generic navigation unchanged**
+   - For non-Khan URLs: continue using the existing single
+     `page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 })` call.
+   - Do not apply the networkidle/fallback logic to non-Khan sites.
+   - This preserves the current behavior for all other content types.
+
+5. **Verify navigation success**
+   - After whichever `page.goto` call ultimately succeeds, keep the existing
+     `response.status() >= 400` check unchanged.
+   - Throw the same error when the page returned a client or server error.
+   - This maintains the current error handling for failed navigation.
+
+6. **Branch extraction after navigation**
+   - After navigation succeeds, check `isKhanAcademyUrl(parsedUrl)` again.
+   - If true: call `extractKhanAcademyPage(page, parsedUrl.toString())` to get
+     `{ content, title, transcriptUsed }` and use that result.
+   - If false: keep the existing generic `main`/`article`/`body` `innerHTML`
+     extraction logic unchanged.
+
+7. **Preserve empty content error handling**
+   - After extraction (whether Khan or generic), maintain the existing check for empty
+     `content`.
+   - If `content` is empty, throw `"Unable to load the page for ingestion."` in both
+     branches.
+   - This ensures consistent error behavior regardless of extraction path.
+
 ## Step 3: Unit tests for the new extractor
 
 **File:** `perk-api/__tests__/khanAcademyExtractor.test.js` (new)
@@ -241,23 +287,24 @@ Cover, using plain string/URL fixtures (no Playwright mocking) for
      `https://khan-cdn.khanacademy.org/...`.
    - Returns `false` for `https://example.com/...` and for malformed input.
 2. `extractTranscriptOrBody`
-   - **Transcript present**: given text containing a `"Video transcript"` header line
-     followed by transcript lines and then an end marker (e.g. `"Up next:"`) followed by
-     unrelated trailing text, asserts the returned `body` contains only the transcript
-     lines and `transcriptUsed` is `true`.
-   - **No transcript, video-like page**: given text with no transcript markers, asserts
-     it falls back to the main body, stopping at a `TRANSCRIPT_END_MARKERS` line (e.g.
-     `"Want to join the conversation?"`), and `transcriptUsed` is `false`.
-   - **Article page**: given a URL containing `/a/` and text with no transcript
-     markers, asserts the cutoff uses `ARTICLE_ONLY_END_MARKERS` (e.g.
-     `"Skip to end of discussions"`) rather than the general end markers.
-   - **Boilerplate filtering**: given text with interleaved boilerplate lines (e.g.
-     `"Sign up"`, `"Log in"`, `"Accept All Cookies"`), asserts none of them appear in the
-     returned body.
-   - **Dedup**: given text with an immediately-repeated line, asserts only one copy
-     appears in the returned body.
-   - **Empty input**: given empty/whitespace-only text, asserts `body` is `""` and
-     `transcriptUsed` is `false`.
+
+- **Transcript present**: given text containing a `"Transcript"` header line
+  followed by transcript lines and then an end marker (e.g. `"Up next:"`) followed by
+  unrelated trailing text, asserts the returned `body` contains only the transcript
+  lines and `transcriptUsed` is `true`.
+- **No transcript, video-like page**: given text with no transcript markers, asserts
+  it falls back to the main body, stopping at a `TRANSCRIPT_END_MARKERS` line (e.g.
+  `"Want to join the conversation?"`), and `transcriptUsed` is `false`.
+- **Article page**: given a URL containing `/a/` and text with no transcript
+  markers, asserts the cutoff uses `ARTICLE_ONLY_END_MARKERS` (e.g.
+  `"Skip to end of discussions"`) rather than the general end markers.
+- **Boilerplate filtering**: given text with interleaved boilerplate lines (e.g.
+  `"Sign up"`, `"Log in"`, `"Accept All Cookies"`), asserts none of them appear in the
+  returned body.
+- **Dedup**: given text with an immediately-repeated line, asserts only one copy
+  appears in the returned body.
+- **Empty input**: given empty/whitespace-only text, asserts `body` is `""` and
+  `transcriptUsed` is `false`.
 
 Add one thin test for `extractKhanAcademyPage`, mocking a Playwright `page` object with
 jest mock functions for `locator(...).first().innerText()`, `locator(...).innerText()`,
@@ -266,6 +313,60 @@ in `ingestScraper.test.js`. Assert it returns the expected `{ content, title,
 transcriptUsed }` shape by delegating to `extractTranscriptOrBody` under the hood
 (you can spot-check with a small fixture rather than re-testing all extraction rules
 here).
+
+### Step 3 substeps
+
+1. **Set up the extractor test file**
+   - Create `perk-api/__tests__/khanAcademyExtractor.test.js`.
+   - Import `isKhanAcademyUrl`, `extractTranscriptOrBody`, and
+     `extractKhanAcademyPage` from `../services/ingest/extractors/khanAcademyExtractor`.
+   - Keep the pure-function tests independent of Playwright and use plain string and
+     URL fixtures.
+
+2. **Test Khan Academy URL detection**
+   - Assert `isKhanAcademyUrl` returns `true` for a standard Khan Academy URL such as
+     `https://www.khanacademy.org/...`.
+   - Assert it returns `true` for a Khan Academy subdomain such as
+     `https://khan-cdn.khanacademy.org/...`.
+   - Assert it returns `false` for a non-Khan URL such as
+     `https://example.com/...` and for malformed input.
+
+3. **Test line normalization and empty input**
+   - Provide text with repeated internal whitespace, blank lines, and consecutive
+     duplicate lines.
+   - Assert the extracted body contains trimmed, whitespace-collapsed lines with
+     consecutive duplicates removed.
+   - Assert empty and whitespace-only input returns `{ body: "", transcriptUsed: false }`.
+
+4. **Test transcript extraction**
+   - Provide a fixture with a line exactly matching `Transcript`, transcript
+     content, an `Up next:` end marker, and unrelated trailing text.
+   - Assert only the transcript content is returned and `transcriptUsed` is `true`.
+   - Add coverage for the summary markers when the exact `Transcript` line is absent.
+
+5. **Test body fallback and article cutoffs**
+   - Provide a video-like fixture without transcript markers and assert extraction
+     stops before a marker such as `Want to join the conversation?`, with
+     `transcriptUsed` set to `false`.
+   - Provide an article URL containing `/a/` and assert extraction uses
+     `Skip to end of discussions` as the cutoff rather than a general transcript end
+     marker.
+
+6. **Test boilerplate filtering and deduplication**
+   - Interleave lines such as `Sign up`, `Log in`, and `Accept All Cookies` with valid
+     content.
+   - Assert boilerplate lines are excluded from the body while valid content remains.
+   - Assert an immediately repeated content line appears only once.
+
+7. **Test the Playwright wrapper**
+   - Mock a minimal `page` object using Jest functions for
+     `locator("h1").first().innerText()`, `locator("main").innerText()`,
+     `locator("body").innerText()`, `title()`, and
+     `getByRole(...).click()`.
+   - Configure the fixture so cookie dismissal, title extraction, and main-text
+     extraction exercise the expected success or fallback behavior.
+   - Assert `extractKhanAcademyPage` returns the `{ content, title, transcriptUsed }`
+     shape and delegates body processing to the pure extractor behavior.
 
 ## Step 4: Extend scraper tests for the new branch
 
@@ -283,6 +384,32 @@ transcriptUsed }`) and returns that content/title, without invoking the generic
   `waitUntil: "domcontentloaded"` before proceeding to extraction. Add a case asserting
   a non-Khan URL still calls `page.goto` exactly once with `waitUntil:
 "domcontentloaded"` (no networkidle attempt).
+
+### Step 4 substeps
+
+1. **Set up the Khan branch scraper tests**
+   - Add the `jest.mock("../services/ingest/extractors/khanAcademyExtractor")` import
+     in `perk-api/__tests__/ingestScraper.test.js`.
+   - Keep the existing generic-path tests intact and add the Khan-specific assertions
+     alongside them.
+
+2. **Assert Khan extraction path behavior**
+   - Mock `extractKhanAcademyPage` to resolve a fixture object like
+     `{ content, title, transcriptUsed }`.
+   - Call `scrapeContent` with a `khanacademy.org` URL and assert it returns the
+     extracted content and title without running the generic `page.evaluate` innerHTML
+     branch.
+   - Assert the non-Khan URL case still uses the generic extraction flow and that the
+     Khan extractor mock is not called.
+
+3. **Assert Khan navigation timing behavior**
+   - For a Khan URL, assert `page.goto` is first called with
+     `waitUntil: "networkidle"` and a 45s timeout.
+   - Simulate a timeout on the first call and assert the code retries once with
+     `waitUntil: "domcontentloaded"` before continuing with extraction.
+   - For a non-Khan URL, assert the code calls `page.goto` exactly once with
+     `waitUntil: "domcontentloaded"` and does not attempt the Khan-specific networkidle
+     path.
 
 ## Suggested implementation order
 
