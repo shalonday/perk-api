@@ -73,7 +73,7 @@ app.post("/ingest/analyze", async (req, res) => {
 
   try {
     const pageData = await scrapeContent(parsedUrl.toString());
-
+    console.log("Scraped page data:", pageData);
     return res.status(200).json({
       url: parsedUrl.toString(),
       title: pageData.title,

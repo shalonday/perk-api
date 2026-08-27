@@ -149,9 +149,21 @@ already used in `scraperConfig.js` and `scraper.js`.
 
 4. **Read the page title and main body text from the rendered DOM**
    - Try `h1` text first and fall back to `page.title()`.
-   - Read the main visible text from `main` and, if needed, fall back to `body`.
-   - Use the browser's visible text output rather than raw HTML so list items and
-     transcript blocks are flattened into user-visible text lines.
+   - Read the main visible text with `await page.locator("main").innerText()`.
+     Playwright's `innerText()` must be used here because it returns rendered,
+     user-visible text with the DOM's line boundaries, rather than markup from
+     `innerHTML` or text from hidden elements. This allows list items, headings,
+     transcript paragraphs, and other visible blocks to remain available as raw
+     line candidates for the extractor.
+   - If the `main` locator cannot be resolved or its `innerText()` call throws,
+     fall back to `await page.locator("body").innerText()`. Treat a failure of both
+     reads as an empty raw-text value; do not trim, collapse whitespace, remove
+     empty lines, deduplicate, or filter markers in this step.
+   - Perform these reads after the cookie-banner dismissal so an overlay cannot
+     obscure or replace the page text. Do not use `page.evaluate()` to read
+     `innerHTML`, scrape the entire HTML document, or add filtering logic here;
+     Step 5 and the pure extractor own normalization, marker detection, cutoff
+     handling, and boilerplate removal.
 
 5. **Normalize the text into line-based transcript candidates**
    - Split the output into lines.

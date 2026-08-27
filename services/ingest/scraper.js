@@ -1,7 +1,8 @@
 const { chromium } = require("playwright");
 const {
-  dismissCookieBanner,
+  extractKhanAcademyPage,
   isKhanAcademyUrl,
+  isSupportedKhanContentUrl,
 } = require("./extractors/khanAcademyExtractor");
 
 /**
@@ -22,6 +23,13 @@ async function scrapeContent(url) {
     throw new Error("Please provide a valid URL.");
   }
 
+  const isKhanPage = isKhanAcademyUrl(parsedUrl);
+  if (isKhanPage && !isSupportedKhanContentUrl(parsedUrl.toString())) {
+    throw new Error(
+      "Only Khan Academy video and article pages are supported. Please submit a lesson video or article URL.",
+    );
+  }
+
   const browser = await chromium.launch({
     headless: true,
   });
@@ -29,8 +37,11 @@ async function scrapeContent(url) {
   try {
     const page = await browser.newPage();
 
-    let response;
-    if (isKhanAcademyUrl(parsedUrl)) {
+    let content;
+    let title;
+
+    if (isKhanPage) {
+      let response;
       try {
         response = await page.goto(parsedUrl.toString(), {
           waitUntil: "networkidle",
@@ -46,34 +57,41 @@ async function scrapeContent(url) {
           timeout: 45000,
         });
       }
+
+      if (!response || response.status() >= 400) {
+        throw new Error("Unable to load the page for ingestion.");
+      }
+
+      const extractedPage = await extractKhanAcademyPage(
+        page,
+        parsedUrl.toString(),
+      );
+      content = extractedPage.content;
+      title = extractedPage.title;
     } else {
-      response = await page.goto(parsedUrl.toString(), {
+      const response = await page.goto(parsedUrl.toString(), {
         waitUntil: "domcontentloaded",
         timeout: 30000,
       });
+
+      if (!response || response.status() >= 400) {
+        throw new Error("Unable to load the page for ingestion.");
+      }
+
+      title = await page.title().catch(() => "");
+
+      content = await page
+        .evaluate(() => {
+          const articleRoot =
+            document.querySelector("main") ??
+            document.querySelector("article") ??
+            document.body;
+
+          const text = articleRoot?.innerHTML ?? "";
+          return text.replace(/\s+/g, " ").trim();
+        })
+        .catch(() => "");
     }
-
-    if (!response || response.status() >= 400) {
-      throw new Error("Unable to load the page for ingestion.");
-    }
-
-    if (isKhanAcademyUrl(parsedUrl)) {
-      await dismissCookieBanner(page);
-    }
-
-    const title = await page.title().catch(() => "");
-
-    const content = await page
-      .evaluate(() => {
-        const articleRoot =
-          document.querySelector("main") ??
-          document.querySelector("article") ??
-          document.body;
-
-        const text = articleRoot?.innerHTML ?? "";
-        return text.replace(/\s+/g, " ").trim();
-      })
-      .catch(() => "");
 
     if (!content) {
       throw new Error("Unable to load the page for ingestion.");

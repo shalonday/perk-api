@@ -4,12 +4,31 @@ jest.mock("playwright", () => ({
   },
 }));
 
+jest.mock("../services/ingest/extractors/khanAcademyExtractor", () => {
+  const actual = jest.requireActual(
+    "../services/ingest/extractors/khanAcademyExtractor",
+  );
+
+  return {
+    ...actual,
+    extractKhanAcademyPage: jest.fn(),
+  };
+});
+
 const { chromium } = require("playwright");
+const {
+  extractKhanAcademyPage,
+} = require("../services/ingest/extractors/khanAcademyExtractor");
 const { scrapeContent } = require("../services/ingest/scraper");
 
 describe("scrapeContent", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    extractKhanAcademyPage.mockResolvedValue({
+      content: "Rendered Khan content",
+      title: "Khan Academy",
+      transcriptUsed: true,
+    });
   });
 
   test("loads the page and returns readable text and title", async () => {
@@ -63,7 +82,6 @@ describe("scrapeContent", () => {
   test("uses networkidle for Khan Academy pages", async () => {
     const page = {
       goto: jest.fn().mockResolvedValue({ status: () => 200 }),
-      title: jest.fn().mockResolvedValue("Khan Academy"),
       evaluate: jest.fn().mockResolvedValue("Rendered Khan content"),
     };
 
@@ -72,13 +90,27 @@ describe("scrapeContent", () => {
       close: jest.fn().mockResolvedValue(undefined),
     });
 
-    await scrapeContent("https://www.khanacademy.org/math");
+    const result = await scrapeContent(
+      "https://www.khanacademy.org/v/some-video",
+    );
 
-    expect(page.goto).toHaveBeenCalledTimes(1);
-    expect(page.goto).toHaveBeenCalledWith("https://www.khanacademy.org/math", {
-      waitUntil: "networkidle",
-      timeout: 45000,
+    expect(extractKhanAcademyPage).toHaveBeenCalledWith(
+      page,
+      "https://www.khanacademy.org/v/some-video",
+    );
+    expect(page.evaluate).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      content: "Rendered Khan content",
+      title: "Khan Academy",
     });
+    expect(page.goto).toHaveBeenCalledTimes(1);
+    expect(page.goto).toHaveBeenCalledWith(
+      "https://www.khanacademy.org/v/some-video",
+      {
+        waitUntil: "networkidle",
+        timeout: 45000,
+      },
+    );
   });
 
   test("falls back to domcontentloaded when Khan navigation times out", async () => {
@@ -91,7 +123,6 @@ describe("scrapeContent", () => {
           }),
         )
         .mockResolvedValueOnce({ status: () => 200 }),
-      title: jest.fn().mockResolvedValue("Khan Academy"),
       evaluate: jest.fn().mockResolvedValue("Rendered Khan content"),
     };
 
@@ -100,18 +131,33 @@ describe("scrapeContent", () => {
       close: jest.fn().mockResolvedValue(undefined),
     });
 
-    await scrapeContent("https://www.khanacademy.org/math");
+    await scrapeContent("https://www.khanacademy.org/v/some-video");
 
+    expect(extractKhanAcademyPage).toHaveBeenCalledWith(
+      page,
+      "https://www.khanacademy.org/v/some-video",
+    );
     expect(page.goto).toHaveBeenNthCalledWith(
       1,
-      "https://www.khanacademy.org/math",
+      "https://www.khanacademy.org/v/some-video",
       { waitUntil: "networkidle", timeout: 45000 },
     );
     expect(page.goto).toHaveBeenNthCalledWith(
       2,
-      "https://www.khanacademy.org/math",
+      "https://www.khanacademy.org/v/some-video",
       { waitUntil: "domcontentloaded", timeout: 45000 },
     );
+  });
+
+  test("rejects Khan Academy pages that are not videos or articles", async () => {
+    await expect(
+      scrapeContent("https://www.khanacademy.org/profile/me"),
+    ).rejects.toThrow(
+      "Only Khan Academy video and article pages are supported",
+    );
+
+    expect(chromium.launch).not.toHaveBeenCalled();
+    expect(extractKhanAcademyPage).not.toHaveBeenCalled();
   });
 
   test("uses one domcontentloaded navigation for non-Khan pages", async () => {
@@ -128,6 +174,7 @@ describe("scrapeContent", () => {
 
     await scrapeContent("https://example.com/lesson");
 
+    expect(extractKhanAcademyPage).not.toHaveBeenCalled();
     expect(page.goto).toHaveBeenCalledTimes(1);
     expect(page.goto).toHaveBeenCalledWith("https://example.com/lesson", {
       waitUntil: "domcontentloaded",

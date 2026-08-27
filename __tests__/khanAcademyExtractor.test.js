@@ -1,6 +1,8 @@
 const {
   dismissCookieBanner,
   isKhanAcademyUrl,
+  isSupportedKhanContentUrl,
+  selectTranscriptTab,
 } = require("../services/ingest/extractors/khanAcademyExtractor");
 
 describe("isKhanAcademyUrl", () => {
@@ -19,6 +21,27 @@ describe("isKhanAcademyUrl", () => {
     expect(isKhanAcademyUrl("malformed")).toBe(false);
     expect(isKhanAcademyUrl(42)).toBe(false);
     expect(isKhanAcademyUrl(null)).toBe(false);
+  });
+});
+
+describe("isSupportedKhanContentUrl", () => {
+  test("accepts video and article paths", () => {
+    expect(
+      isSupportedKhanContentUrl("https://www.khanacademy.org/v/some-video"),
+    ).toBe(true);
+    expect(
+      isSupportedKhanContentUrl("https://www.khanacademy.org/a/some-article"),
+    ).toBe(true);
+  });
+
+  test("rejects other page types and invalid input", () => {
+    expect(
+      isSupportedKhanContentUrl("https://www.khanacademy.org/profile/me"),
+    ).toBe(false);
+    expect(
+      isSupportedKhanContentUrl("https://www.khanacademy.org/e/math"),
+    ).toBe(false);
+    expect(isSupportedKhanContentUrl(null)).toBe(false);
   });
 });
 
@@ -57,5 +80,35 @@ describe("dismissCookieBanner", () => {
 
   test("does nothing when the page has no role locator", async () => {
     await expect(dismissCookieBanner({})).resolves.toBeUndefined();
+  });
+});
+
+describe("selectTranscriptTab", () => {
+  test("clicks the Transcript tab when present", async () => {
+    const click = jest.fn().mockResolvedValue(undefined);
+    const page = {
+      getByRole: jest.fn().mockReturnValue({ click }),
+    };
+
+    await selectTranscriptTab(page);
+
+    expect(page.getByRole).toHaveBeenCalledWith("tab", {
+      name: /transcript/i,
+    });
+    expect(click).toHaveBeenCalledWith({ timeout: 3000 });
+  });
+
+  test("swallows failures when no Transcript tab is present", async () => {
+    const page = {
+      getByRole: jest.fn().mockReturnValue({
+        click: jest.fn().mockRejectedValue(new Error("Tab unavailable")),
+      }),
+    };
+
+    await expect(selectTranscriptTab(page)).resolves.toBeUndefined();
+  });
+
+  test("does nothing when the page has no role locator", async () => {
+    await expect(selectTranscriptTab({})).resolves.toBeUndefined();
   });
 });
