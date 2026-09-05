@@ -1,5 +1,49 @@
 const { isAllowedDomain } = require("./scraperConfig");
 const { scrapeContent } = require("./scraper");
+const {
+  extractKhanAcademyTranscriptOrBody,
+  isKhanAcademyUrl,
+} = require("./extractors/khanAcademyExtractor");
+
+/**
+ * Enum for supported whitelisted sites.
+ */
+const WhitelistedSite = Object.freeze({
+  KHAN_ACADEMY: "KHAN_ACADEMY",
+});
+
+/**
+ * Determines the WhitelistedSite enum value for a given URL.
+ *
+ * @param {string | URL} url - URL to inspect.
+ * @returns {string | null} WhitelistedSite value, or null if unmapped.
+ */
+function getWhitelistedSite(url) {
+  if (isKhanAcademyUrl(url)) {
+    return WhitelistedSite.KHAN_ACADEMY;
+  }
+  return null;
+}
+
+/**
+ * Given all visible text in the page, extracts the main educational content using
+ * keywords/signifiers specific to the given whitelisted site.
+ *
+ * @param {string} content - Raw visible page text.
+ * @param {string} site - The WhitelistedSite enum value.
+ * @param {string} [url] - Page URL used for site-specific extraction rules.
+ * @returns {string} Extracted main educational content text.
+ */
+function extractEducationalContent(content, site, url) {
+  switch (site) {
+    case WhitelistedSite.KHAN_ACADEMY: {
+      const { body } = extractKhanAcademyTranscriptOrBody(content, url);
+      return body || content;
+    }
+    default:
+      return content;
+  }
+}
 
 /**
  * Validates an ingest URL and returns parsed URL or error response.
@@ -58,12 +102,30 @@ async function analyzeIngest(req, res) {
   const { url: parsedUrl } = validation;
 
   try {
+    // extract visible text content
     const pageData = await scrapeContent(parsedUrl.toString());
     console.log("Scraped page data:", pageData);
+
+    const site = getWhitelistedSite(parsedUrl.toString());
+    const educContent = extractEducationalContent(
+      pageData.content,
+      site,
+      parsedUrl.toString(),
+    );
+
+    console.log("Extracted educational content:", educContent);
+
+    // extractPrereqsAndObjectives(educContent)
+    // given the main educational content, extract the prerequisites and learning objectives by querying an LLM
+
+    // canonicalizePrereqsAndObjectives([...prereqs, ...objectives])
+    // for each item in the given combined prereqs and objectives skill list, conduct fuzzy search on the neo4j database.
+    // If there is a result sufficiently similar enough to call a duplicate, consider the item in the db as the canonical version and replace the original item with it.
+    // Return the canonicalized list of prerequisites and objectives, including those that were not found in the database.
     return res.status(200).json({
       url: parsedUrl.toString(),
       title: pageData.title,
-      content: pageData.content,
+      content: educContent,
       prerequisites: [],
       objectives: [],
     });
@@ -78,5 +140,9 @@ async function analyzeIngest(req, res) {
 }
 
 module.exports = {
+  WhitelistedSite,
+  getWhitelistedSite,
+  extractEducationalContent,
   analyzeIngest,
+  validateIngestUrl,
 };
