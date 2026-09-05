@@ -2,6 +2,47 @@ const { isAllowedDomain } = require("./scraperConfig");
 const { scrapeContent } = require("./scraper");
 
 /**
+ * Validates an ingest URL and returns parsed URL or error response.
+ *
+ * @param {string} url - The URL to validate.
+ * @param {import("express").Response} res - Express response.
+ * @returns {{ url: URL } | null} Parsed URL if valid, null if validation failed and response sent.
+ */
+function validateIngestUrl(url, res) {
+  if (!url || typeof url !== "string" || !url.trim()) {
+    res.status(400).json({ error: "Please provide a valid URL." });
+    return null;
+  }
+
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(url);
+  } catch {
+    res.status(400).json({ error: "Please provide a valid URL." });
+    return null;
+  }
+
+  if (
+    !parsedUrl.protocol ||
+    parsedUrl.protocol !== "https:" ||
+    !parsedUrl.hostname
+  ) {
+    res.status(400).json({ error: "Please provide a valid HTTPS URL." });
+    return null;
+  }
+
+  if (!isAllowedDomain(parsedUrl.hostname)) {
+    res.status(400).json({
+      error:
+        "URL domain is not allowed for ingestion. Please use one of the approved learning sites.",
+    });
+    return null;
+  }
+
+  return { url: parsedUrl };
+}
+
+/**
  * Analyzes an allowed learning URL and returns its scraped content.
  *
  * @param {import("express").Request} req - Express request.
@@ -11,31 +52,10 @@ const { scrapeContent } = require("./scraper");
 async function analyzeIngest(req, res) {
   const { url } = req.body ?? {};
 
-  if (!url || typeof url !== "string" || !url.trim()) {
-    return res.status(400).json({ error: "Please provide a valid URL." });
-  }
+  const validation = validateIngestUrl(url, res);
+  if (!validation) return;
 
-  let parsedUrl;
-  try {
-    parsedUrl = new URL(url);
-  } catch {
-    return res.status(400).json({ error: "Please provide a valid URL." });
-  }
-
-  if (
-    !parsedUrl.protocol ||
-    parsedUrl.protocol !== "https:" ||
-    !parsedUrl.hostname
-  ) {
-    return res.status(400).json({ error: "Please provide a valid HTTPS URL." });
-  }
-
-  if (!isAllowedDomain(parsedUrl.hostname)) {
-    return res.status(400).json({
-      error:
-        "URL domain is not allowed for ingestion. Please use one of the approved learning sites.",
-    });
-  }
+  const { url: parsedUrl } = validation;
 
   try {
     const pageData = await scrapeContent(parsedUrl.toString());
