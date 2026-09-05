@@ -1,6 +1,7 @@
 const { normalizeHostname } = require("../scraperConfig");
 
 const TRANSCRIPT_START_MARKERS = ["video transcript"];
+const ARTICLE_START_MARKERS = ["share link"];
 const SUMMARY_START_MARKERS = ["abouttranscript", "about transcript"];
 const TRANSCRIPT_END_MARKERS = [
   "creative commons attribution",
@@ -62,6 +63,13 @@ function findContentStartIndex(lowerLines) {
   );
   if (transcriptIndex >= 0) {
     return transcriptIndex;
+  }
+
+  const articleIndex = lowerLines.findIndex((line) =>
+    ARTICLE_START_MARKERS.some((marker) => line.includes(marker)),
+  );
+  if (articleIndex >= 0) {
+    return articleIndex;
   }
 
   return lowerLines.findIndex((line) =>
