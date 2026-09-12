@@ -106,6 +106,7 @@ async function analyzeIngest(req, res) {
     const pageData = await scrapeContent(parsedUrl.toString());
     console.log("Scraped page data:", pageData);
 
+    // extract educational content from visible text
     const site = getWhitelistedSite(parsedUrl.toString());
     const educContent = extractEducationalContent(
       pageData.content,
