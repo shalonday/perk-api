@@ -4,8 +4,8 @@ const {
   WhitelistedSite,
 } = require("../services/ingest/service");
 const {
-  DEFAULT_ALLOWED_DOMAINS,
-  isAllowedDomain,
+  isAllowedHostname,
+  DEFAULT_ALLOWED_HOSTNAMES,
 } = require("../services/ingest/scraperConfig");
 
 describe("analyzeIngest", () => {
@@ -15,24 +15,24 @@ describe("analyzeIngest", () => {
   });
 });
 
-describe("validateIngestUrl", () => {
+describe("validateIngestUrl(string, object): { url: URL } | null", () => {
   // Create a mock response object
   const createMockRes = () => ({
     status: jest.fn().mockReturnThis(),
     json: jest.fn().mockReturnThis(),
   });
 
-  test.each(DEFAULT_ALLOWED_DOMAINS)(
-    "allowed domain %s passes validation",
-    (allowedDomain) => {
+  test.each(DEFAULT_ALLOWED_HOSTNAMES)(
+    "allowed hostname %s passes validation",
+    (allowedHostname) => {
       const mockRes = createMockRes();
       const result = validateIngestUrl(
-        `https://${allowedDomain}/learn`,
+        `https://${allowedHostname}/learn`,
         mockRes,
       );
 
       expect(result).toEqual({
-        url: new URL(`https://${allowedDomain}/learn`),
+        url: new URL(`https://${allowedHostname}/learn`),
       });
       expect(mockRes.status).not.toHaveBeenCalled();
       expect(mockRes.json).not.toHaveBeenCalled();
@@ -94,29 +94,37 @@ describe("validateIngestUrl", () => {
   });
 });
 
-describe("isAllowedDomain", () => {
-  test("isAllowedDomain('', DEFAULT_ALLOWED_DOMAINS) => false", () => {
-    expect(isAllowedDomain("", DEFAULT_ALLOWED_DOMAINS)).toBe(false);
+describe("isAllowedHostname(string, string[]): boolean", () => {
+  test("isAllowedHostname('example.com', DEFAULT_ALLOWED_HOSTNAMES) => false", () => {
+    expect(isAllowedHostname("example.com", DEFAULT_ALLOWED_HOSTNAMES)).toBe(
+      false,
+    );
   });
 
-  test("isAllowedDomain('example.com', DEFAULT_ALLOWED_DOMAINS) => false", () => {
-    expect(isAllowedDomain("example.com", DEFAULT_ALLOWED_DOMAINS)).toBe(false);
+  test("isAllowedHostname('example.com', ['example.com']) => true", () => {
+    expect(isAllowedHostname("example.com", ["example.com"])).toBe(true);
   });
 
-  test("isAllowedDomain('example.com', ['example.com']) => true", () => {
-    expect(isAllowedDomain("example.com", ["example.com"])).toBe(true);
+  test("isAllowedHostname('docs.example.com', ['example.com']) => true", () => {
+    expect(isAllowedHostname("docs.example.com", ["example.com"])).toBe(true);
   });
 
-  test("isAllowedDomain('docs.example.com', ['example.com']) => true", () => {
-    expect(isAllowedDomain("docs.example.com", ["example.com"])).toBe(true);
+  test("isAllowedHostname('www.example.com', ['www.example.com']) => true", () => {
+    expect(isAllowedHostname("www.example.com", ["www.example.com"])).toBe(
+      true,
+    );
   });
 
-  test("isAllowedDomain('example.com', ['www.example.com']) => true", () => {
-    expect(isAllowedDomain("example.com", ["www.example.com"])).toBe(true);
+  test("isAllowedHostname('example.com', ['www.example.com']) => false (allowed hostname is more specific than the input hostname)", () => {
+    expect(isAllowedHostname("example.com", ["www.example.com"])).toBe(false);
+  });
+
+  test("isAllowedHostname('data.example.com', ['www.example.com']) => false", () => {
+    expect(isAllowedHostname("data.example.com", ["www.example.com"])).toBe(
+      false,
+    );
   });
 });
-
-describe("normalizeHostname", () => {});
 
 describe("scrapeContent(url)", () => {
   // Test implementation goes here, I think only integration tests would fully cover this since it involves network requests.

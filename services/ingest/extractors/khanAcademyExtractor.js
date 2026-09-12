@@ -166,8 +166,8 @@ function isKhanAcademyUrl(url) {
 
   let hostname;
   try {
-    const normalizedUrl = url instanceof URL ? url.toString() : url;
-    hostname = normalizeHostname(normalizedUrl).replace(/^www\./i, "");
+    const normalizedUrl = url instanceof URL ? url : new URL(url);
+    hostname = normalizedUrl.hostname;
   } catch {
     return false;
   }

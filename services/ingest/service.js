@@ -1,4 +1,7 @@
-const { isAllowedDomain } = require("./scraperConfig");
+const {
+  isAllowedHostname,
+  DEFAULT_ALLOWED_HOSTNAMES,
+} = require("./scraperConfig");
 const { scrapeContent } = require("./scraper");
 const {
   extractKhanAcademyTranscriptOrBody,
@@ -75,7 +78,7 @@ function validateIngestUrl(url, res) {
     return null;
   }
 
-  if (!isAllowedDomain(parsedUrl.hostname)) {
+  if (!isAllowedHostname(parsedUrl.hostname, DEFAULT_ALLOWED_HOSTNAMES)) {
     res.status(400).json({
       error:
         "URL domain is not allowed for ingestion. Please use one of the approved learning sites.",
