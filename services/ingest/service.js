@@ -9,7 +9,7 @@ const {
 } = require("./extractors/khanAcademyExtractor");
 
 /**
- * Enum for supported whitelisted sites.
+ * Enum for names of supported whitelisted (ie scraping is already enabled) sites.
  */
 const WhitelistedSite = Object.freeze({
   KHAN_ACADEMY: "KHAN_ACADEMY",
@@ -29,11 +29,11 @@ function getWhitelistedSite(url) {
 }
 
 /**
- * Given all visible text in the page, extracts the main educational content using
+ * Given all visible text in the page, and the website name, extracts the main educational content using
  * keywords/signifiers specific to the given whitelisted site.
  *
  * @param {string} content - Raw visible page text.
- * @param {string} site - The WhitelistedSite enum value.
+ * @param {string} site - The WhitelistedSite enum value (ie the website name).
  * @param {string} [url] - Page URL used for site-specific extraction rules.
  * @returns {string} Extracted main educational content text.
  */

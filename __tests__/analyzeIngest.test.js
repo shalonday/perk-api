@@ -2,6 +2,7 @@ const {
   validateIngestUrl,
   getWhitelistedSite,
   WhitelistedSite,
+  extractEducationalContent,
 } = require("../services/ingest/service");
 const {
   isAllowedHostname,
@@ -130,19 +131,43 @@ describe("scrapeContent(url)", () => {
   // Test implementation goes here, I think only integration tests would fully cover this since it involves network requests.
 });
 
-test("getWhiteListed(url) works correctly", () => {
-  expect(getWhitelistedSite("https://www.khanacademy.org/v/sample-video")).toBe(
-    WhitelistedSite.KHAN_ACADEMY,
-  );
-  expect(
-    getWhitelistedSite(
-      "https://developer.mozilla.org/en-US/docs/Web/JavaScript",
-    ),
-  ).toBeNull();
+// add to this as we get more whitelisted sites
+describe("getWhiteListedSite(url)", () => {
+  test("getWhitelistedSite('https://www.khanacademy.org/v/sample-video') => WhitelistedSite.KHAN_ACADEMY", () => {
+    expect(
+      getWhitelistedSite("https://www.khanacademy.org/v/sample-video"),
+    ).toBe(WhitelistedSite.KHAN_ACADEMY);
+  });
+
+  test("getWhitelistedSite('https://developer.mozilla.org/en-US/docs/Web/JavaScript') => null", () => {
+    expect(
+      getWhitelistedSite(
+        "https://developer.mozilla.org/en-US/docs/Web/JavaScript",
+      ),
+    ).toBeNull();
+  });
 });
 
-test("extractEducationalContent(rawContent, site, url) works correctly", () => {
+// add to this as we get more whitelisted sites
+describe("extractEducationalContent(rawContent, site, url)", () => {
   // KhanAcademy site extraction works
+  test("extractEducationalContent('Page title\nVideo transcript\nFirst line\nSecond   line\nUp next:\nUnrelated text', WhitelistedSite.KHAN_ACADEMY, 'https://www.khanacademy.org/v/sample-video') => 'First line\nSecond line'", () => {
+    const rawContent =
+      "Page title\nVideo transcript\nFirst line\nSecond   line\nUp next:\nUnrelated text";
+    const site = WhitelistedSite.KHAN_ACADEMY;
+    const url = "https://www.khanacademy.org/v/sample-video";
+    const extractedContent = extractEducationalContent(rawContent, site, url);
+    expect(extractedContent).toBe("First line\nSecond line");
+  });
+
+  // unwhitelisted site extraction returns the raw content
+  test("extractEducationalContent('Some content', null, 'https://www.example.com') => 'Some content'", () => {
+    const rawContent = "Some content";
+    const site = null;
+    const url = "https://www.example.com";
+    const extractedContent = extractEducationalContent(rawContent, site, url);
+    expect(extractedContent).toBe("Some content");
+  });
 });
 
 test("extractKhanAcademyTranscriptOrBody(content, url) works correctly", () => {
