@@ -3,7 +3,10 @@ const {
   getWhitelistedSite,
   WhitelistedSite,
 } = require("../services/ingest/service");
-const { DEFAULT_ALLOWED_DOMAINS } = require("../services/ingest/scraperConfig");
+const {
+  DEFAULT_ALLOWED_DOMAINS,
+  isAllowedDomain,
+} = require("../services/ingest/scraperConfig");
 
 describe("analyzeIngest", () => {
   test("analyzeIngest(req,res) works correctly", () => {
@@ -91,7 +94,27 @@ describe("validateIngestUrl", () => {
   });
 });
 
-describe("isAllowedDomain", () => {});
+describe("isAllowedDomain", () => {
+  test("isAllowedDomain('', DEFAULT_ALLOWED_DOMAINS) => false", () => {
+    expect(isAllowedDomain("", DEFAULT_ALLOWED_DOMAINS)).toBe(false);
+  });
+
+  test("isAllowedDomain('example.com', DEFAULT_ALLOWED_DOMAINS) => false", () => {
+    expect(isAllowedDomain("example.com", DEFAULT_ALLOWED_DOMAINS)).toBe(false);
+  });
+
+  test("isAllowedDomain('example.com', ['example.com']) => true", () => {
+    expect(isAllowedDomain("example.com", ["example.com"])).toBe(true);
+  });
+
+  test("isAllowedDomain('docs.example.com', ['example.com']) => true", () => {
+    expect(isAllowedDomain("docs.example.com", ["example.com"])).toBe(true);
+  });
+
+  test("isAllowedDomain('example.com', ['www.example.com']) => true", () => {
+    expect(isAllowedDomain("example.com", ["www.example.com"])).toBe(true);
+  });
+});
 
 describe("normalizeHostname", () => {});
 
