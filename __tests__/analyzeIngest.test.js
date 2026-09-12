@@ -1,114 +1,147 @@
-const { validateIngestUrl } = require("../services/ingest/service");
+const {
+  validateIngestUrl,
+  getWhitelistedSite,
+  WhitelistedSite,
+} = require("../services/ingest/service");
+const { DEFAULT_ALLOWED_DOMAINS } = require("../services/ingest/scraperConfig");
 
 describe("analyzeIngest", () => {
   test("analyzeIngest(req,res) works correctly", () => {
     // sample request with sample content with educational content
     // that would return prerequisites [] and objectives [].
   });
+});
 
-  test("validateIngestUrl(url, res) works correctly", () => {
-    // Create a mock response object
-    const createMockRes = () => ({
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn().mockReturnThis(),
-    });
+describe("validateIngestUrl", () => {
+  // Create a mock response object
+  const createMockRes = () => ({
+    status: jest.fn().mockReturnThis(),
+    json: jest.fn().mockReturnThis(),
+  });
 
-    // empty url causes 400 error
-    let mockRes = createMockRes();
+  test.each(DEFAULT_ALLOWED_DOMAINS)(
+    "allowed domain %s passes validation",
+    (allowedDomain) => {
+      const mockRes = createMockRes();
+      const result = validateIngestUrl(
+        `https://${allowedDomain}/learn`,
+        mockRes,
+      );
+
+      expect(result).toEqual({
+        url: new URL(`https://${allowedDomain}/learn`),
+      });
+      expect(mockRes.status).not.toHaveBeenCalled();
+      expect(mockRes.json).not.toHaveBeenCalled();
+    },
+  );
+
+  test("validateIngestUrl('', mockRes) => 400 error", () => {
+    const mockRes = createMockRes();
     validateIngestUrl("", mockRes);
     expect(mockRes.status).toHaveBeenCalledWith(400);
     expect(mockRes.json).toHaveBeenCalledWith({
       error: "Please provide a valid URL.",
     });
+  });
 
-    // non-string url causes 400 error
-    mockRes = createMockRes();
+  test("validateIngestUrl(null, mockRes) => 400 error", () => {
+    const mockRes = createMockRes();
     validateIngestUrl(null, mockRes);
     expect(mockRes.status).toHaveBeenCalledWith(400);
     expect(mockRes.json).toHaveBeenCalledWith({
       error: "Please provide a valid URL.",
     });
+  });
 
-    mockRes = createMockRes();
+  test("validateIngestUrl(123, mockRes) => 400 error", () => {
+    const mockRes = createMockRes();
     validateIngestUrl(123, mockRes);
     expect(mockRes.status).toHaveBeenCalledWith(400);
     expect(mockRes.json).toHaveBeenCalledWith({
       error: "Please provide a valid URL.",
     });
+  });
 
-    // incorrectly formed url (ie doesn't pass new URL(url)) causes 400 error
-    mockRes = createMockRes();
+  test("validateIngestUrl('not a valid url', mockRes) => 400 error", () => {
+    const mockRes = createMockRes();
     validateIngestUrl("not a valid url", mockRes);
     expect(mockRes.status).toHaveBeenCalledWith(400);
     expect(mockRes.json).toHaveBeenCalledWith({
       error: "Please provide a valid URL.",
     });
+  });
 
-    // empty protocol (covered by new URL() parsing) and non-https protocol causes error
-    mockRes = createMockRes();
+  test("validateIngestUrl('http://example.com', mockRes) => 400 error", () => {
+    const mockRes = createMockRes();
     validateIngestUrl("http://example.com", mockRes);
     expect(mockRes.status).toHaveBeenCalledWith(400);
     expect(mockRes.json).toHaveBeenCalledWith({
       error: "Please provide a valid HTTPS URL.",
     });
+  });
 
-    // no hostname causes error (covered by the protocol validation check)
-    mockRes = createMockRes();
+  test("validateIngestUrl('https://', mockRes) => 400 error", () => {
+    const mockRes = createMockRes();
     validateIngestUrl("https://", mockRes);
     expect(mockRes.status).toHaveBeenCalledWith(400);
     expect(mockRes.json).toHaveBeenCalledWith({
-      error: "Please provide a valid HTTPS URL.",
+      error: "Please provide a valid URL.",
     });
   });
+});
 
-  test("scrapeContent(url) works correctly", () => {
-    // Test implementation goes here, I think only integration tests would fully cover this since it involves network requests.
-  });
+describe("isAllowedDomain", () => {});
 
-  test("getWhiteListed(url) works correctly", () => {
-    expect(
-      getWhitelistedSite("https://www.khanacademy.org/v/sample-video"),
-    ).toBe(WhitelistedSite.KHAN_ACADEMY);
-    expect(
-      getWhitelistedSite(
-        "https://developer.mozilla.org/en-US/docs/Web/JavaScript",
-      ),
-    ).toBeNull();
-  });
+describe("normalizeHostname", () => {});
 
-  test("extractEducationalContent(rawContent, site, url) works correctly", () => {
-    // KhanAcademy site extraction works
-  });
+describe("scrapeContent(url)", () => {
+  // Test implementation goes here, I think only integration tests would fully cover this since it involves network requests.
+});
 
-  test("extractKhanAcademyTranscriptOrBody(content, url) works correctly", () => {
-    // Test implementation goes here
-  });
+test("getWhiteListed(url) works correctly", () => {
+  expect(getWhitelistedSite("https://www.khanacademy.org/v/sample-video")).toBe(
+    WhitelistedSite.KHAN_ACADEMY,
+  );
+  expect(
+    getWhitelistedSite(
+      "https://developer.mozilla.org/en-US/docs/Web/JavaScript",
+    ),
+  ).toBeNull();
+});
 
-  test("getNormalizedLines(rawContent) works correctly", () => {
-    // Test implementation goes here
-  });
+test("extractEducationalContent(rawContent, site, url) works correctly", () => {
+  // KhanAcademy site extraction works
+});
 
-  test("cleanLine(rawContent) works correctly", () => {
-    // Test implementation goes here
-  });
+test("extractKhanAcademyTranscriptOrBody(content, url) works correctly", () => {
+  // Test implementation goes here
+});
 
-  test("findContentStartIndex(rawContent) works correctly", () => {
-    // Test implementation goes here
-  });
+test("getNormalizedLines(rawContent) works correctly", () => {
+  // Test implementation goes here
+});
 
-  test("getEndMarkers(rawContent) works correctly", () => {
-    // Test implementation goes here
-  });
+test("cleanLine(rawContent) works correctly", () => {
+  // Test implementation goes here
+});
 
-  test("extractBodyLines(rawContent) works correctly", () => {
-    // Test implementation goes here
-  });
+test("findContentStartIndex(rawContent) works correctly", () => {
+  // Test implementation goes here
+});
 
-  test("extractPrereqsAndObjectives(educContent) works correctly", () => {
-    // Test implementation goes here
-  });
+test("getEndMarkers(rawContent) works correctly", () => {
+  // Test implementation goes here
+});
 
-  test("canonicalizePrereqsAndObjectives([...prereqs, ...objectives]) works correctly", () => {
-    // Test implementation goes here
-  });
+test("extractBodyLines(rawContent) works correctly", () => {
+  // Test implementation goes here
+});
+
+test("extractPrereqsAndObjectives(educContent) works correctly", () => {
+  // Test implementation goes here
+});
+
+test("canonicalizePrereqsAndObjectives([...prereqs, ...objectives]) works correctly", () => {
+  // Test implementation goes here
 });

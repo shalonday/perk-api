@@ -10,7 +10,7 @@ const {
 describe("extractKhanAcademyTranscriptOrBody", () => {
   test("extracts visible transcript text until an end marker", () => {
     const result = extractKhanAcademyTranscriptOrBody(
-      "Page title\nTranscript\nFirst line\nSecond   line\nUp next:\nUnrelated text",
+      "Page title\nVideo transcript\nFirst line\nSecond   line\nUp next:\nUnrelated text",
       "https://www.khanacademy.org/v/lesson",
     );
 
@@ -46,7 +46,7 @@ describe("extractKhanAcademyTranscriptOrBody", () => {
 
   test("filters boilerplate and deduplicates consecutive lines", () => {
     const result = extractKhanAcademyTranscriptOrBody(
-      "Transcript\nSign up\nUseful line\nUseful line\nLog in\nAccept All Cookies\nAnother line\nUp next:",
+      "Video transcript\nSign up\nUseful line\nUseful line\nLog in\nAccept All Cookies\nAnother line\nUp next:",
       "https://www.khanacademy.org/v/lesson",
     );
 
