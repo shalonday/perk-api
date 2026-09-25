@@ -1,5 +1,3 @@
-const { normalizeHostname } = require("../scraperConfig");
-
 const TRANSCRIPT_START_MARKERS = ["video transcript"];
 const ARTICLE_START_MARKERS = ["share link"];
 const SUMMARY_START_MARKERS = ["abouttranscript", "about transcript"];

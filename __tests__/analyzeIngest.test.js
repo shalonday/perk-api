@@ -1,4 +1,11 @@
+jest.mock("../services/ingest/scraper", () => ({
+  scrapeContent: jest.fn(),
+}));
+
+const { scrapeContent } = require("../services/ingest/scraper");
+
 const {
+  analyzeIngest,
   validateIngestUrl,
   getWhitelistedSite,
   WhitelistedSite,
@@ -9,10 +16,76 @@ const {
   DEFAULT_ALLOWED_HOSTNAMES,
 } = require("../services/ingest/scraperConfig");
 
-describe("analyzeIngest", () => {
-  test("analyzeIngest(req,res) works correctly", () => {
-    // sample request with sample content with educational content
-    // that would return prerequisites [] and objectives [].
+describe("analyzeIngest(req,res)", () => {
+  const createMockRes = () => ({
+    status: jest.fn().mockReturnThis(),
+    json: jest.fn().mockReturnThis(),
+  });
+
+  beforeEach(() => {
+    scrapeContent.mockReset();
+  });
+
+  test("analyzeIngest(<request with Khan Academy link>,res) => { prerequisites: [], objectives: [] }", async () => {
+    const req = {
+      body: {
+        url: "https://www.khanacademy.org/v/sample-video",
+      },
+    };
+    const res = createMockRes();
+
+    scrapeContent.mockResolvedValueOnce({
+      title: "Sample lesson",
+      content: "Page title\nVideo transcript\nFirst line\nSecond line",
+    });
+
+    await analyzeIngest(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({
+      url: "https://www.khanacademy.org/v/sample-video",
+      title: "Sample lesson",
+      content: "First line\nSecond line",
+      prerequisites: [], // TODO: mock these too
+      objectives: [], // TODO: mock these too
+    });
+  });
+
+  test("analyzeIngest(<request with non-Khan Academy link>,res) => { prerequisites: [], objectives: [] }", async () => {
+    const req = {
+      body: {
+        url: "https://www.freecodecamp.org/news/sample-article",
+      },
+    };
+    const res = createMockRes();
+
+    scrapeContent.mockResolvedValueOnce({
+      title: "Sample article",
+      content: "Some content from the article",
+    });
+
+    await analyzeIngest(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({
+      url: "https://www.freecodecamp.org/news/sample-article",
+      title: "Sample article",
+      content: "Some content from the article",
+      prerequisites: [], // TODO: mock these too
+      objectives: [], // TODO: mock these too
+    });
+  });
+
+  test("analyzeIngest(<request with invalid body>,res) => res.status(400).json({ error })", async () => {
+    const req = {
+      body: {},
+    };
+    const res = createMockRes();
+
+    await analyzeIngest(req, res);
+
+    expect(scrapeContent).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
   });
 });
 
@@ -148,7 +221,7 @@ describe("getWhiteListedSite(url)", () => {
   });
 });
 
-// add to this as we get more whitelisted sites
+// TODO: add to this as we get more whitelisted sites
 describe("extractEducationalContent(rawContent, site, url)", () => {
   // KhanAcademy site extraction works
   test("extractEducationalContent('Page title\nVideo transcript\nFirst line\nSecond   line\nUp next:\nUnrelated text', WhitelistedSite.KHAN_ACADEMY, 'https://www.khanacademy.org/v/sample-video') => 'First line\nSecond line'", () => {
