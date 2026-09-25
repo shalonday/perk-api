@@ -40,7 +40,7 @@ function getWhitelistedSite(url) {
 function extractEducationalContent(content, site, url) {
   switch (site) {
     case WhitelistedSite.KHAN_ACADEMY: {
-      const { body } = extractKhanAcademyTranscriptOrBody(content, url);
+      const body = extractKhanAcademyTranscriptOrBody(content, url);
       return body || content;
     }
     default:

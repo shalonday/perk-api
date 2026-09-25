@@ -127,7 +127,6 @@ function extractKhanAcademyTranscriptOrBody(text, url) {
   const lines = getNormalizedLines(text);
   const lowerLines = lines.map((line) => line.toLowerCase());
   const startIndex = findContentStartIndex(lowerLines);
-  const transcriptUsed = startIndex >= 0;
   const bodyLines = extractBodyLines(
     lines,
     lowerLines,
@@ -136,7 +135,7 @@ function extractKhanAcademyTranscriptOrBody(text, url) {
   );
 
   const body = bodyLines.join("\n").trim();
-  return body ? { body, transcriptUsed } : { body: "", transcriptUsed: false };
+  return body;
 }
 
 /**

@@ -15,6 +15,9 @@ const {
   isAllowedHostname,
   DEFAULT_ALLOWED_HOSTNAMES,
 } = require("../services/ingest/scraperConfig");
+const {
+  extractKhanAcademyTranscriptOrBody,
+} = require("../services/ingest/extractors/khanAcademyExtractor");
 
 describe("analyzeIngest(req,res)", () => {
   const createMockRes = () => ({
@@ -233,6 +236,15 @@ describe("extractEducationalContent(rawContent, site, url)", () => {
     expect(extractedContent).toBe("First line\nSecond line");
   });
 
+  test("extractEducationalContent('Page title\nShare Link\nFirst line\nSecond line\nSkip to end of discussions:\nUnrelated text', WhitelistedSite.KHAN_ACADEMY, 'https://www.khanacademy.org/a/sample-article') => 'First line\nSecond line'", () => {
+    const rawContent =
+      "Page title\nShare Link\nFirst line\nSecond line\nSkip to end of discussions:\nUnrelated text";
+    const site = WhitelistedSite.KHAN_ACADEMY;
+    const url = "https://www.khanacademy.org/a/sample-article";
+    const extractedContent = extractEducationalContent(rawContent, site, url);
+    expect(extractedContent).toBe("First line\nSecond line");
+  });
+
   // unwhitelisted site extraction returns the raw content
   test("extractEducationalContent('Some content', null, 'https://www.example.com') => 'Some content'", () => {
     const rawContent = "Some content";
@@ -243,8 +255,30 @@ describe("extractEducationalContent(rawContent, site, url)", () => {
   });
 });
 
-test("extractKhanAcademyTranscriptOrBody(content, url) works correctly", () => {
-  // Test implementation goes here
+describe("extractKhanAcademyTranscriptOrBody(content, url)", () => {
+  test("(/v/ url) extractKhanAcademyTranscriptOrBody('Page title\nVideo transcript\nFirst line\nSecond line\nUp next:\nUnrelated text', 'https://www.khanacademy.org/v/sample-video') => 'First line\nSecond line'", () => {
+    const content =
+      "Page title\nVideo transcript\nFirst line\nSecond line\nUp next:\nUnrelated text";
+    const url = "https://www.khanacademy.org/v/sample-video";
+    const extractedContent = extractKhanAcademyTranscriptOrBody(content, url);
+    expect(extractedContent).toBe("First line\nSecond line");
+  });
+
+  test("(/a/ url) extractKhanAcademyTranscriptOrBody('Page title\nVideo transcript\nFirst line\nSecond line\nUp next:\nUnrelated text', 'https://www.khanacademy.org/a/sample-article') => 'First line\nSecond line'", () => {
+    const content =
+      "Page title\nShare Link\nFirst line\nSecond line\nSkip to end of discussions:\nUnrelated text";
+    const url = "https://www.khanacademy.org/a/sample-article";
+    const extractedContent = extractKhanAcademyTranscriptOrBody(content, url);
+    expect(extractedContent).toBe("First line\nSecond line");
+  });
+
+  test("(neither /v/ nor /a/ url) extractKhanAcademyTranscriptOrBody('Page title\nrandom text\nFirst line\nSecond line\nrandom:\nUnrelated text', 'https://www.khanacademy.org/sample-page') => '<full content>'", () => {
+    const content =
+      "Page title\nrandom text\nFirst line\nSecond line\nrandom:\nUnrelated text";
+    const url = "https://www.khanacademy.org/sample-page";
+    const extractedContent = extractKhanAcademyTranscriptOrBody(content, url);
+    expect(extractedContent).toBe(content);
+  });
 });
 
 test("getNormalizedLines(rawContent) works correctly", () => {
