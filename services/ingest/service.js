@@ -7,6 +7,7 @@ const {
   extractKhanAcademyTranscriptOrBody,
   isKhanAcademyUrl,
 } = require("./extractors/khanAcademyExtractor");
+const { extractPrereqsAndObjectivesFromContent } = require("./llmClient");
 
 /**
  * Enum for names of supported whitelisted (ie scraping is already enabled) sites.
@@ -119,8 +120,8 @@ async function analyzeIngest(req, res) {
 
     console.log("Extracted educational content:", educContent);
 
-    // extractPrereqsAndObjectives(educContent)
-    // given the main educational content, extract the prerequisites and learning objectives by querying an LLM
+    const { prerequisites, objectives } =
+      extractPrereqsAndObjectivesFromContent(educContent);
 
     // canonicalizePrereqsAndObjectives([...prereqs, ...objectives])
     // for each item in the given combined prereqs and objectives skill list, conduct fuzzy search on the neo4j database.
@@ -130,8 +131,8 @@ async function analyzeIngest(req, res) {
       url: parsedUrl.toString(),
       title: pageData.title,
       content: educContent,
-      prerequisites: [],
-      objectives: [],
+      prerequisites: prerequisites,
+      objectives: objectives,
     });
   } catch (error) {
     return res.status(400).json({
