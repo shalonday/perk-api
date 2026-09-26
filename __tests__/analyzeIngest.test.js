@@ -17,7 +17,12 @@ const {
 } = require("../services/ingest/scraperConfig");
 const {
   extractKhanAcademyTranscriptOrBody,
-  __testOnly: { getNormalizedLines, cleanLine, findContentStartIndex },
+  __testOnly: {
+    getNormalizedLines,
+    cleanLine,
+    findContentStartIndex,
+    extractBodyLines,
+  },
 } = require("../services/ingest/extractors/khanAcademyExtractor");
 
 describe("analyzeIngest(req,res)", () => {
@@ -356,12 +361,24 @@ describe("findContentStartIndex(rawContentLowerLines[])", () => {
   });
 });
 
-test("getEndMarkers(rawContent) works correctly", () => {
-  // Test implementation goes here
-});
+describe("extractBodyLines(lines, lowerLines, startIndex, endMarkers)", () => {
+  test("extractBodyLines(lines, ['page title', 'video transcript', 'first line', 'second line', 'up next:', 'unrelated text'], 1, ['up next:']) => ['first line', 'second line']", () => {
+    const lines = [
+      "Page title",
+      "Video transcript",
+      "First line",
+      "Second line",
+      "Up next:",
+      "Unrelated text",
+    ];
+    const lowerLines = lines.map((line) => line.toLowerCase());
+    const startIndex = 1;
+    const endMarkers = ["up next:"];
 
-test("extractBodyLines(rawContent) works correctly", () => {
-  // Test implementation goes here
+    expect(extractBodyLines(lines, lowerLines, startIndex, endMarkers)).toEqual(
+      ["First line", "Second line"],
+    );
+  });
 });
 
 test("extractPrereqsAndObjectives(educContent) works correctly", () => {
