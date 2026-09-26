@@ -20,6 +20,7 @@ const {
   getWhitelistedSite,
   WhitelistedSite,
   extractEducationalContent,
+  canonicalizePrereqsAndObjectives,
 } = require("../services/ingest/service");
 const {
   isAllowedHostname,
@@ -435,6 +436,41 @@ describe("extractPrereqsAndObjectives(educContent)", () => {
   });
 });
 
-test("canonicalizePrereqsAndObjectives([...prereqs, ...objectives]) works correctly", () => {
-  // Test implementation goes here
+describe("canonicalizePrereqsAndObjectives([...prereqs, ...objectives])", () => {
+  test("canonicalizePrereqsAndObjectives({nonempty-prereqs[<length 4>], nonempty-objectives[<length 4>]}) => {canonicalized-prereqs[<length 4>], canonicalized-objectives[<length 4>]}", () => {
+    const input = {
+      prerequisites: [
+        "Interpret negative numbers",
+        "Interpret a fraction as a numerator divided by the denominator",
+        "Divide a negative number by another negative number",
+        "Multiply a negative number by another negative number",
+      ],
+      objectives: [
+        "Manipulate negative signs in fractions",
+        "Recognize equivalence of fractions with negatives in numerator or denominator",
+        "Simplify expressions involving negative fractions",
+        "Identify equivalent expressions involving negative fractions",
+      ],
+    };
+
+    const canonicalized = canonicalizePrereqsAndObjectives(
+      input.prerequisites,
+      input.objectives,
+    );
+
+    expect(canonicalized).toEqual({
+      prerequisites: [
+        "Identify positive and negative numbers on a number line",
+        "Interpret fractions as parts of a whole",
+        "Divide a negative number by another negative number",
+        "Multiply a negative number by another negative number",
+      ],
+      objectives: [
+        "Manipulate negative signs in fractions",
+        "Recognize equivalence of fractions with negatives in numerator or denominator",
+        "Simplify expressions involving negative fractions",
+        "Identify equivalent expressions involving negative fractions",
+      ],
+    });
+  });
 });

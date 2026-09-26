@@ -50,6 +50,37 @@ function extractEducationalContent(content, site, url) {
 }
 
 /**
+ * TODO: Implement canonical lookup helper for ingest canonicalization.
+ *
+ * @param {string} term - Skill term to look up.
+ * @returns {string | null} Canonical term when found, otherwise null.
+ */
+function lookupCanonicalPrereqOrObjective(_term) {
+  return null;
+}
+/**
+ * TODO:
+ *   for each item in the given combined prereqs and objectives skill list, conduct fuzzy search on the neo4j database.
+ *   If there is a result sufficiently similar enough to call a duplicate, consider the item in the db as the canonical version and replace the original item with it.
+ *   Return the canonicalized list of prerequisites and objectives, including those that were not found in the database.
+ * @param {string[]} prerequisites - Prerequisite terms.
+ * @param {string[]} objectives - Objective terms.
+ * @returns {{ prerequisites: string[], objectives: string[] }} Grouped terms.
+ */
+function canonicalizePrereqsAndObjectives(prerequisites, objectives) {
+  return {
+    prerequisites: prerequisites.map((term) => {
+      const canonicalTerm = lookupCanonicalPrereqOrObjective(term);
+      return canonicalTerm ?? term;
+    }),
+    objectives: objectives.map((term) => {
+      const canonicalTerm = lookupCanonicalPrereqOrObjective(term);
+      return canonicalTerm ?? term;
+    }),
+  };
+}
+
+/**
  * Validates an ingest URL and returns parsed URL or error response.
  *
  * @param {string} url - The URL to validate.
@@ -123,16 +154,17 @@ async function analyzeIngest(req, res) {
     const { prerequisites, objectives } =
       extractPrereqsAndObjectivesFromContent(educContent);
 
-    // canonicalizePrereqsAndObjectives([...prereqs, ...objectives])
-    // for each item in the given combined prereqs and objectives skill list, conduct fuzzy search on the neo4j database.
-    // If there is a result sufficiently similar enough to call a duplicate, consider the item in the db as the canonical version and replace the original item with it.
-    // Return the canonicalized list of prerequisites and objectives, including those that were not found in the database.
+    const canonicalized = canonicalizePrereqsAndObjectives(
+      prerequisites,
+      objectives,
+    );
+
     return res.status(200).json({
       url: parsedUrl.toString(),
       title: pageData.title,
       content: educContent,
-      prerequisites: prerequisites,
-      objectives: objectives,
+      prerequisites: canonicalized.prerequisites,
+      objectives: canonicalized.objectives,
     });
   } catch (error) {
     return res.status(400).json({
@@ -148,6 +180,8 @@ module.exports = {
   WhitelistedSite,
   getWhitelistedSite,
   extractEducationalContent,
+  lookupCanonicalPrereqOrObjective,
+  canonicalizePrereqsAndObjectives,
   analyzeIngest,
   validateIngestUrl,
 };
