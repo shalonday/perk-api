@@ -17,7 +17,7 @@ const {
 } = require("../services/ingest/scraperConfig");
 const {
   extractKhanAcademyTranscriptOrBody,
-  __testOnly: { getNormalizedLines },
+  __testOnly: { getNormalizedLines, cleanLine, findContentStartIndex },
 } = require("../services/ingest/extractors/khanAcademyExtractor");
 
 describe("analyzeIngest(req,res)", () => {
@@ -283,6 +283,19 @@ describe("extractKhanAcademyTranscriptOrBody(content, url)", () => {
 });
 
 describe("getNormalizedLines(rawContent)", () => {
+  test("getNormalizedLines('Page title\nVideo transcript\nFirst line\nSecond line\nUp next:\nUnrelated text') => ['Page title', 'Video transcript', 'First line', 'Second line', 'Up next:', 'Unrelated text']", () => {
+    const rawContent =
+      "Page title\nVideo transcript\nFirst line\nSecond line\nUp next:\nUnrelated text";
+    expect(getNormalizedLines(rawContent)).toEqual([
+      "Page title",
+      "Video transcript",
+      "First line",
+      "Second line",
+      "Up next:",
+      "Unrelated text",
+    ]);
+  });
+
   test("getNormalizedLines('  line 1  \n\n  line 2  ') => ['line 1', 'line 2']", () => {
     const rawContent = "  line 1  \n\n  line 2  ";
 
@@ -304,9 +317,42 @@ describe("cleanLine(rawContent)", () => {
   });
 });
 
-describe("findContentStartIndex(rawContent)", () => {
-  test("findContentStartIndex(rawContent)", () => {
-    // Test implementation goes here
+describe("findContentStartIndex(rawContentLowerLines[])", () => {
+  test("(video; markers are 'Video transcript' and 'Up next') findContentStartIndex(['page title', 'video transcript', 'first line', 'second line', 'up next:', 'unrelated text']) => 1", () => {
+    const rawContentLines = [
+      "page title",
+      "video transcript",
+      "first line",
+      "second line",
+      "up next:",
+      "unrelated text",
+    ];
+    expect(findContentStartIndex(rawContentLines)).toBe(1);
+  });
+
+  test("(article; markers are 'Share Link' and 'Skip to end of discussions') findContentStartIndex(['page', 'title', 'share link', 'first line', 'second line', 'skip to end of discussions:', 'unrelated text']) => 2", () => {
+    const rawContentLines = [
+      "page",
+      "title",
+      "share link",
+      "first line",
+      "second line",
+      "skip to end of discussions:",
+      "unrelated text",
+    ];
+    expect(findContentStartIndex(rawContentLines)).toBe(2);
+  });
+
+  test("(neither video nor article; no recognizable markers) findContentStartIndex(['page title', 'randomtranscript', 'first line', 'second line', 'randomtext', 'unrelated text']) => -1", () => {
+    const rawContentLines = [
+      "page title",
+      "randomtranscript",
+      "first line",
+      "second line",
+      "randomtext",
+      "unrelated text",
+    ];
+    expect(findContentStartIndex(rawContentLines)).toBe(-1);
   });
 });
 
