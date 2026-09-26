@@ -17,6 +17,7 @@ const {
 } = require("../services/ingest/scraperConfig");
 const {
   extractKhanAcademyTranscriptOrBody,
+  __testOnly: { getNormalizedLines },
 } = require("../services/ingest/extractors/khanAcademyExtractor");
 
 describe("analyzeIngest(req,res)", () => {
@@ -281,16 +282,32 @@ describe("extractKhanAcademyTranscriptOrBody(content, url)", () => {
   });
 });
 
-test("getNormalizedLines(rawContent) works correctly", () => {
-  // Test implementation goes here
+describe("getNormalizedLines(rawContent)", () => {
+  test("getNormalizedLines('  line 1  \n\n  line 2  ') => ['line 1', 'line 2']", () => {
+    const rawContent = "  line 1  \n\n  line 2  ";
+
+    expect(getNormalizedLines(rawContent)).toEqual(["line 1", "line 2"]);
+  });
+
+  test("(collapses duplicate neighboring lines) getNormalizedLines('line 1\nline 1\n\nline 2') => ['line 1', 'line 2']", () => {
+    expect(getNormalizedLines("line 1\nline 1\n\nline 2")).toEqual([
+      "line 1",
+      "line 2",
+    ]);
+  });
 });
 
-test("cleanLine(rawContent) works correctly", () => {
-  // Test implementation goes here
+describe("cleanLine(rawContent)", () => {
+  test("cleanLine('  line 1  ') => 'line 1'", () => {
+    const rawContent = "  line 1  ";
+    expect(cleanLine(rawContent)).toBe("line 1");
+  });
 });
 
-test("findContentStartIndex(rawContent) works correctly", () => {
-  // Test implementation goes here
+describe("findContentStartIndex(rawContent)", () => {
+  test("findContentStartIndex(rawContent)", () => {
+    // Test implementation goes here
+  });
 });
 
 test("getEndMarkers(rawContent) works correctly", () => {

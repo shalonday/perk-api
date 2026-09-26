@@ -256,6 +256,14 @@ async function selectTranscriptTab(page) {
   }
 }
 
+const __testOnly = Object.freeze({
+  getNormalizedLines,
+  cleanLine,
+  findContentStartIndex,
+  getEndMarkers,
+  extractBodyLines,
+});
+
 module.exports = {
   dismissCookieBanner,
   extractKhanAcademyPage,
@@ -263,4 +271,5 @@ module.exports = {
   isKhanAcademyUrl,
   isSupportedKhanContentUrl,
   selectTranscriptTab,
+  __testOnly,
 };
