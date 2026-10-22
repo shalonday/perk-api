@@ -20,7 +20,7 @@ function extractPrereqsAndObjectivesFromContent(educContent) {
   //   "prerequisites": ["prereq1", "prereq2", ...],
   //   "objectives": ["objective1", "objective2", ...]
   // }
-  void educContent;
+  console.log(educContent);
 
   return {
     prerequisites: [],

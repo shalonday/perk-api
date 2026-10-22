@@ -154,6 +154,9 @@ async function analyzeIngest(req, res) {
     const { prerequisites, objectives } =
       extractPrereqsAndObjectivesFromContent(educContent);
 
+    console.log("Extracted prerequisites:", prerequisites);
+    console.log("Extracted objectives:", objectives);
+
     const canonicalized = canonicalizePrereqsAndObjectives(
       prerequisites,
       objectives,

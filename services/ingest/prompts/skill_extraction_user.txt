@@ -1,0 +1,12 @@
+Analyze the following educational content body and return JSON that exactly matches the schema.
+
+Body:
+{{body}}
+
+Return exactly:
+{
+  "prerequisites": ["..."],
+  "objectives": ["..."]
+}
+
+Refer to the system prompt for other requirements.

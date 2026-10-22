@@ -396,6 +396,8 @@ describe("extractBodyLines(lines, lowerLines, startIndex, endMarkers)", () => {
   });
 });
 
+//TODO: Once I'm done with Jest class, and hopefully have a better idea of what kind of tests make sense for
+//      LLM API calls, review this test
 describe("extractPrereqsAndObjectives(educContent)", () => {
   test("(no API calls in this test) extractPrereqsAndObjectives(<sample educ content about negative fractions>) => {prerequisites: string[], objectives: string[]}", () => {
     const sampleEducContent =
@@ -436,6 +438,8 @@ describe("extractPrereqsAndObjectives(educContent)", () => {
   });
 });
 
+//TODO: Once I'm done with Jest class, and hopefully have a better idea of what kind of tests make sense for
+//      LLM API calls, review this test
 describe("canonicalizePrereqsAndObjectives([...prereqs, ...objectives])", () => {
   test("canonicalizePrereqsAndObjectives({nonempty-prereqs[<length 4>], nonempty-objectives[<length 4>]}) => {canonicalized-prereqs[<length 4>], canonicalized-objectives[<length 4>]}", () => {
     const input = {
