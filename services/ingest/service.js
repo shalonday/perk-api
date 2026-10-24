@@ -152,7 +152,7 @@ async function analyzeIngest(req, res) {
     console.log("Extracted educational content:", educContent);
 
     const { prerequisites, objectives } =
-      extractPrereqsAndObjectivesFromContent(educContent);
+      await extractPrereqsAndObjectivesFromContent(educContent);
 
     console.log("Extracted prerequisites:", prerequisites);
     console.log("Extracted objectives:", objectives);
