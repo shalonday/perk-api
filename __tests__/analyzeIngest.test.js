@@ -65,6 +65,10 @@ describe("analyzeIngest(req,res)", () => {
 
     await analyzeIngest(req, res);
 
+    expect(extractPrereqsAndObjectivesFromContent).toHaveBeenCalledWith(
+      "First line\nSecond line",
+      "Sample lesson",
+    );
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({
       url: "https://www.khanacademy.org/v/sample-video",
@@ -90,6 +94,10 @@ describe("analyzeIngest(req,res)", () => {
 
     await analyzeIngest(req, res);
 
+    expect(extractPrereqsAndObjectivesFromContent).toHaveBeenCalledWith(
+      "Some content from the article",
+      "Sample article",
+    );
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({
       url: "https://www.freecodecamp.org/news/sample-article",

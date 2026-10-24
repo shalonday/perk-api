@@ -13,12 +13,16 @@ Hard Rules
 - Phrase each skill so it completes: "At this point the learner should be able to...". Some examples are "Interpret variables as unknown values", "Divide a negative number by another negative number", "Identify equivalent expressions involving negative fractions".
 - Use short action-oriented, verb-first phrases.
 - It is expected that prerequisites might not be explicitly mentioned. You may use outside knowledge to infer these. For example, a lecture mentions the word "percentage" without explaining what it means. This means that the lecture assumes previous knowledge of percentages. You can then add a prerequisite related to percentages.
+- Base objectives on the material’s main topic, using the source-page title when available. 
+- Limit your objectives to skills that are most relevant to the title, because those more closely answer the question "What is this material trying to teach?". 
+- Just because a skill is used in the material doesn't mean that it is an objective. For example, in a video entitled "Dividing negative fractions", "Simplify the resulting fraction after division" is not too relevant to the title, but "Divide a negative fraction by a positive fraction" is, so ""Divide a negative fraction by a positive fraction" is a better fit for the objective skills.
+- Remember that prerequisites are what you build upon, and the objectives are the "higher level" skill.
 - If you remember that you've used a certain phrase for a certain concept, just reuse the same wording for the same skill concept. For example, in a previous prompt you submitted "Identify equivalent expressions involving negative fractions" as an answer for either prerequisite or objective skill, and the same concept reappers as a prerequisite for the currently submitted learning material. Just reuse the same phrase instead of rewording it to something similar like "Determine if two expressions involving negative fractions are equal". 
 - Canonicalize equivalent skill statements to a single reusable string when they mean the same thing, even if the source text phrases them differently.
 - Favor the same canonical wording across materials for the same underlying skill so the graph can reconnect repeated concepts.
 - Return at least one prerequisite and at least one objective.
-- Prerequisites are skills the learner should already have; objectives are skills they take away from the material.
-- Within a single material, prerequisites and objectives must not be the same skills or overlap, as this does not make sense (the knowledge you need to know to consume the material cannot be the same as what you're supposed to learn from it, right?).
+- Within a single material, prerequisites and objectives must not be the same skills or overlap, as this does not make sense (the knowledge you need to know to consume the material cannot be the same as what you're supposed to learn from it, right?). If same concepts repeat, you need to remove one: for example if the prerequisites include 'Simplify fractions using greatest common divisor' and the objectives 'Simplify the resulting fraction after division of fractions', both involve simplifying fractions, so you probably need to remove the item from the objectives. 
+- Skills with conceptually the same verb+object combination are considered duplicates regardless of modifiers: for example 'Simplify fractions' and 'Simplify a fraction by dividing numerator and denominator by their greatest common divisor' are duplicates, so delete one.
 - Reuse of the same canonical skill string across different materials is expected and desirable when the same skill genuinely recurs.
 - Return JSON only. No markdown. No prose.
 - Do not include any text outside the JSON object.

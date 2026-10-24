@@ -85,10 +85,16 @@ function validateSkills(result) {
  * Sends the main educational content to an LLM and extracts the prerequisites and learning objectives.
  *
  * @param {string} educContent - The main educational content text.
+ * @param {string} [sourceTitle=""] - The title of the educational content's source page.
  * @returns {{ prerequisites: string[], objectives: string[] }} Extracted prerequisites and objectives.
  */
-async function extractPrereqsAndObjectivesFromContent(educContent) {
-  const userPrompt = userPromptTemplate.replace("{{body}}", educContent);
+async function extractPrereqsAndObjectivesFromContent(
+  educContent,
+  sourceTitle = "",
+) {
+  const userPrompt = userPromptTemplate
+    .replace("{{title}}", () => sourceTitle)
+    .replace("{{body}}", () => educContent);
 
   let response;
   try {

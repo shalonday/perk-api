@@ -151,8 +151,9 @@ async function analyzeIngest(req, res) {
 
     console.log("Extracted educational content:", educContent);
 
+    // extract prerequisites and objectives using LLM-backed extraction
     const { prerequisites, objectives } =
-      await extractPrereqsAndObjectivesFromContent(educContent);
+      await extractPrereqsAndObjectivesFromContent(educContent, pageData.title);
 
     console.log("Extracted prerequisites:", prerequisites);
     console.log("Extracted objectives:", objectives);

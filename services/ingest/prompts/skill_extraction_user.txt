@@ -1,5 +1,8 @@
 Analyze the following educational content body and return JSON that exactly matches the schema.
 
+Source page title:
+{{title}}
+
 Body:
 {{body}}
 
