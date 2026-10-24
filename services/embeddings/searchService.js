@@ -3,9 +3,11 @@
  * Handles semantic search against Neo4j nodes with embeddings.
  */
 
+const DEFAULT_NODE_TYPES = ["Skill", "URL"];
+const EMBEDDING_MODEL = "Xenova/all-MiniLM-L6-v2";
+
 /**
- * Search for nodes using semantic similarity.
- * Fetches all nodes with embeddings, computes similarity with query, and returns top results.
+ * Loads the Transformers pipeline in the format supported by the current runtime.
  */
 async function loadPipeline() {
   // Jest runs tests in a CJS VM context where dynamic import requires an extra
@@ -18,16 +20,26 @@ async function loadPipeline() {
   return pipeline;
 }
 
-async function searchNodesBySimilarity(driver, query, limit = 5) {
+/**
+ * Fetches embedded nodes with selected labels from Neo4j.
+ *
+ * @param {object} driver - Neo4j driver.
+ * @param {string[]} nodeTypes - Node labels to search.
+ * @returns {Promise<{ node: object, embedding: number[] }[]>} Nodes with embeddings.
+ */
+async function fetchNodesWithEmbeddings(
+  driver,
+  nodeTypes = DEFAULT_NODE_TYPES,
+) {
   const session = driver.session();
 
   try {
-    // Fetch all nodes with embeddings
     const result = await session.executeRead((tx) => {
       return tx.run(
         `
-        MATCH (n:Skill|URL)
-        WHERE n.embedding IS NOT NULL
+        MATCH (n)
+        WHERE any(nodeType IN labels(n) WHERE nodeType IN $nodeTypes)
+          AND n.embedding IS NOT NULL
         RETURN {
           uuid: n.uuid,
           name: n.name,
@@ -35,53 +47,84 @@ async function searchNodesBySimilarity(driver, query, limit = 5) {
         } as node,
         n.embedding as embedding
         `,
+        { nodeTypes },
       );
     });
 
-    // If we have no results, return empty
-    if (result.records.length === 0) {
-      return {
-        results: [],
-        note: "No embeddings found. Run 'npm run generate-embeddings' to populate embeddings.",
-      };
-    }
-
-    // Load embedding pipeline (supports ESM runtime + Jest test environment)
-    const pipeline = await loadPipeline();
-    const extractor = await pipeline(
-      "feature-extraction",
-      "Xenova/all-MiniLM-L6-v2",
-    );
-
-    // Generate embedding for the query
-    const queryEmbeddingResult = await extractor(query, {
-      pooling: "mean",
-      normalize: true,
-    });
-    const queryEmbedding = Array.from(queryEmbeddingResult.data);
-
-    // Compute cosine similarity with dot product (since embeddings are normalized)
-    const scored = result.records
-      .map((record) => {
-        const nodeEmbedding = record.get("embedding");
-        const similarity = nodeEmbedding.reduce(
-          (sum, val, idx) => sum + val * queryEmbedding[idx],
-          0,
-        );
-        return {
-          node: record.get("node"),
-          similarity,
-        };
-      })
-      .sort((a, b) => b.similarity - a.similarity)
-      .slice(0, limit);
-
-    return { results: scored };
+    return result.records.map((record) => ({
+      node: record.get("node"),
+      embedding: record.get("embedding"),
+    }));
   } finally {
     session.close();
   }
 }
 
+/**
+ * Generates a normalized embedding for a text query.
+ *
+ * @param {string} text - Text to embed.
+ * @returns {Promise<number[]>} Normalized query embedding.
+ */
+async function embedText(text) {
+  const pipeline = await loadPipeline();
+  const extractor = await pipeline("feature-extraction", EMBEDDING_MODEL);
+  const embeddingResult = await extractor(text, {
+    pooling: "mean",
+    normalize: true,
+  });
+
+  return Array.from(embeddingResult.data);
+}
+
+/**
+ * Ranks embedded nodes by cosine similarity with a normalized query embedding.
+ *
+ * @param {{ node: object, embedding: number[] }[]} nodes - Nodes to rank.
+ * @param {number[]} queryEmbedding - Normalized query embedding.
+ * @param {number} limit - Maximum number of results.
+ * @returns {{ node: object, similarity: number }[]} Ranked top results.
+ */
+function rankNodesBySimilarity(nodes, queryEmbedding, limit = 5) {
+  return nodes
+    .map(({ node, embedding }) => ({
+      node,
+      // Embeddings are normalized, so their dot product is cosine similarity.
+      similarity: embedding.reduce(
+        (sum, value, index) => sum + value * queryEmbedding[index],
+        0,
+      ),
+    }))
+    .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, limit);
+}
+
+/**
+ * Searches embedded Neo4j nodes using semantic similarity.
+ *
+ * @param {object} driver - Neo4j driver.
+ * @param {string} query - Text query to search for.
+ * @param {number} limit - Maximum number of results.
+ * @returns {Promise<{ results: object[], note?: string }>} Ranked search results.
+ */
+async function searchNodesBySimilarity(driver, query, limit = 5) {
+  const nodes = await fetchNodesWithEmbeddings(driver);
+  if (nodes.length === 0) {
+    return {
+      results: [],
+      note: "No embeddings found. Run 'npm run generate-embeddings' to populate embeddings.",
+    };
+  }
+
+  const queryEmbedding = await embedText(query);
+  return {
+    results: rankNodesBySimilarity(nodes, queryEmbedding, limit),
+  };
+}
+
 module.exports = {
+  fetchNodesWithEmbeddings,
+  embedText,
+  rankNodesBySimilarity,
   searchNodesBySimilarity,
 };
