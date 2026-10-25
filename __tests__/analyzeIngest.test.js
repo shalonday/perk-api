@@ -9,10 +9,21 @@ jest.mock("../services/ingest/llmClient", () => ({
   }),
 }));
 
+jest.mock("../services/embeddings/searchService", () => ({
+  embedText: jest.fn(),
+  fetchNodesWithEmbeddings: jest.fn(),
+  rankNodesBySimilarity: jest.fn(),
+}));
+
 const { scrapeContent } = require("../services/ingest/scraper");
 const {
   extractPrereqsAndObjectivesFromContent,
 } = require("../services/ingest/llmClient");
+const {
+  embedText,
+  fetchNodesWithEmbeddings,
+  rankNodesBySimilarity,
+} = require("../services/embeddings/searchService");
 
 const {
   analyzeIngest,
@@ -44,6 +55,9 @@ describe("analyzeIngest(req,res)", () => {
   beforeEach(() => {
     scrapeContent.mockReset();
     extractPrereqsAndObjectivesFromContent.mockReset();
+    embedText.mockReset();
+    fetchNodesWithEmbeddings.mockReset();
+    rankNodesBySimilarity.mockReset();
     extractPrereqsAndObjectivesFromContent.mockReturnValue({
       prerequisites: [],
       objectives: [],
@@ -106,6 +120,53 @@ describe("analyzeIngest(req,res)", () => {
       prerequisites: [], // TODO: mock these too
       objectives: [], // TODO: mock these too
     });
+  });
+
+  test("canonicalizes extracted terms using the shared Neo4j driver", async () => {
+    const req = {
+      body: {
+        url: "https://www.freecodecamp.org/news/sample-article",
+      },
+    };
+    const res = createMockRes();
+    const driver = {};
+    const getDriver = jest.fn().mockResolvedValue(driver);
+
+    scrapeContent.mockResolvedValueOnce({
+      title: "Sample article",
+      content: "Some content from the article",
+    });
+    extractPrereqsAndObjectivesFromContent.mockResolvedValueOnce({
+      prerequisites: ["Equivalent term"],
+      objectives: ["Unmatched term"],
+    });
+    fetchNodesWithEmbeddings.mockResolvedValueOnce([
+      { node: { name: "Canonical skill" }, embedding: [1] },
+    ]);
+    embedText.mockResolvedValueOnce([1]).mockResolvedValueOnce([0]);
+    rankNodesBySimilarity.mockImplementation((nodes, queryEmbedding, limit) =>
+      nodes
+        .map(({ node, embedding }) => ({
+          node,
+          similarity: embedding.reduce(
+            (sum, value, index) => sum + value * queryEmbedding[index],
+            0,
+          ),
+        }))
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, limit),
+    );
+
+    await analyzeIngest(req, res, getDriver);
+
+    expect(getDriver).toHaveBeenCalledTimes(1);
+    expect(fetchNodesWithEmbeddings).toHaveBeenCalledWith(driver, ["Skill"]);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prerequisites: ["Canonical skill"],
+        objectives: ["Unmatched term"],
+      }),
+    );
   });
 
   test("analyzeIngest(<request with invalid body>,res) => res.status(400).json({ error })", async () => {
@@ -449,40 +510,55 @@ describe("extractPrereqsAndObjectives(educContent)", () => {
 //TODO: Once I'm done with Jest class, and hopefully have a better idea of what kind of tests make sense for
 //      LLM API calls, review this test
 describe("canonicalizePrereqsAndObjectives([...prereqs, ...objectives])", () => {
-  test("canonicalizePrereqsAndObjectives({nonempty-prereqs[<length 4>], nonempty-objectives[<length 4>]}) => {canonicalized-prereqs[<length 4>], canonicalized-objectives[<length 4>]}", () => {
-    const input = {
-      prerequisites: [
-        "Interpret negative numbers",
-        "Interpret a fraction as a numerator divided by the denominator",
-        "Divide a negative number by another negative number",
-        "Multiply a negative number by another negative number",
-      ],
-      objectives: [
-        "Manipulate negative signs in fractions",
-        "Recognize equivalence of fractions with negatives in numerator or denominator",
-        "Simplify expressions involving negative fractions",
-        "Identify equivalent expressions involving negative fractions",
-      ],
-    };
+  beforeEach(() => {
+    embedText.mockReset();
+    fetchNodesWithEmbeddings.mockReset();
+    rankNodesBySimilarity.mockReset();
+  });
 
-    const canonicalized = canonicalizePrereqsAndObjectives(
-      input.prerequisites,
-      input.objectives,
+  test("fetches skill embeddings once and preserves terms below the similarity threshold", async () => {
+    const driver = {};
+    const embeddedSkills = [
+      { node: { name: "Canonical skill" }, embedding: [0.9] },
+    ];
+    fetchNodesWithEmbeddings.mockResolvedValue(embeddedSkills);
+    embedText.mockResolvedValueOnce([1]).mockResolvedValueOnce([0]);
+    rankNodesBySimilarity.mockImplementation((nodes, queryEmbedding, limit) =>
+      nodes
+        .map(({ node, embedding }) => ({
+          node,
+          similarity: embedding.reduce(
+            (sum, value, index) => sum + value * queryEmbedding[index],
+            0,
+          ),
+        }))
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, limit),
     );
 
+    const canonicalized = await canonicalizePrereqsAndObjectives(
+      ["Equivalent term", "Unmatched term"],
+      ["Equivalent term"],
+      driver,
+    );
+
+    expect(fetchNodesWithEmbeddings).toHaveBeenCalledTimes(1);
+    expect(fetchNodesWithEmbeddings).toHaveBeenCalledWith(driver, ["Skill"]);
+    expect(embedText).toHaveBeenCalledTimes(2);
     expect(canonicalized).toEqual({
-      prerequisites: [
-        "Identify positive and negative numbers on a number line",
-        "Interpret fractions as parts of a whole",
-        "Divide a negative number by another negative number",
-        "Multiply a negative number by another negative number",
-      ],
-      objectives: [
-        "Manipulate negative signs in fractions",
-        "Recognize equivalence of fractions with negatives in numerator or denominator",
-        "Simplify expressions involving negative fractions",
-        "Identify equivalent expressions involving negative fractions",
-      ],
+      prerequisites: ["Canonical skill", "Unmatched term"],
+      objectives: ["Canonical skill"],
     });
+  });
+
+  test("does not fetch embeddings when there are no terms", async () => {
+    await expect(
+      canonicalizePrereqsAndObjectives([], [], undefined),
+    ).resolves.toEqual({
+      prerequisites: [],
+      objectives: [],
+    });
+
+    expect(fetchNodesWithEmbeddings).not.toHaveBeenCalled();
   });
 });

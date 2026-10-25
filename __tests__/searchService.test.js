@@ -56,15 +56,16 @@ describe("embedding search helpers", () => {
   test("embeds text with the configured normalized feature-extraction pipeline", async () => {
     const extractor = jest
       .fn()
-      .mockResolvedValue({ data: Float32Array.from([0.25, 0.75]) });
+      .mockResolvedValue({ data: Float32Array.from([1, 0]) });
     pipeline.mockResolvedValue(extractor);
 
-    await expect(embedText("learn fractions")).resolves.toEqual([0.25, 0.75]);
+    await expect(embedText("learn fractions")).resolves.toEqual([1, 0]);
 
     expect(pipeline).toHaveBeenCalledWith(
       "feature-extraction",
       "Xenova/all-MiniLM-L6-v2",
     );
+    expect(pipeline).toHaveBeenCalledTimes(1);
     expect(extractor).toHaveBeenCalledWith("learn fractions", {
       pooling: "mean",
       normalize: true,
