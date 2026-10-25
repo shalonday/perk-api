@@ -5,6 +5,7 @@
 
 const DEFAULT_NODE_TYPES = ["Skill", "URL"];
 const EMBEDDING_MODEL = "Xenova/all-MiniLM-L6-v2";
+let extractorPromise;
 
 /**
  * Loads the Transformers pipeline in the format supported by the current runtime.
@@ -18,6 +19,27 @@ async function loadPipeline() {
 
   const { pipeline } = await import("@xenova/transformers");
   return pipeline;
+}
+
+/**
+ * Loads and reuses the text embedding extractor.
+ *
+ * @returns {Promise<Function>} Transformers feature-extraction pipeline.
+ */
+async function getExtractor() {
+  if (!extractorPromise) {
+    extractorPromise = (async () => {
+      const pipeline = await loadPipeline();
+      return pipeline("feature-extraction", EMBEDDING_MODEL);
+    })();
+  }
+
+  try {
+    return await extractorPromise;
+  } catch (error) {
+    extractorPromise = undefined;
+    throw error;
+  }
 }
 
 /**
@@ -67,8 +89,7 @@ async function fetchNodesWithEmbeddings(
  * @returns {Promise<number[]>} Normalized query embedding.
  */
 async function embedText(text) {
-  const pipeline = await loadPipeline();
-  const extractor = await pipeline("feature-extraction", EMBEDDING_MODEL);
+  const extractor = await getExtractor();
   const embeddingResult = await extractor(text, {
     pooling: "mean",
     normalize: true,

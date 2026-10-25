@@ -8,6 +8,13 @@ const {
   isKhanAcademyUrl,
 } = require("./extractors/khanAcademyExtractor");
 const { extractPrereqsAndObjectivesFromContent } = require("./llmClient");
+const {
+  embedText,
+  fetchNodesWithEmbeddings,
+  rankNodesBySimilarity,
+} = require("../embeddings/searchService");
+
+const CANONICAL_SKILL_SIMILARITY_THRESHOLD = 0.8;
 
 /**
  * Enum for names of supported whitelisted (ie scraping is already enabled) sites.
@@ -50,33 +57,62 @@ function extractEducationalContent(content, site, url) {
 }
 
 /**
- * TODO: Implement canonical lookup helper for ingest canonicalization.
+ * Finds an existing skill that is sufficiently similar to an extracted term.
  *
  * @param {string} term - Skill term to look up.
- * @returns {string | null} Canonical term when found, otherwise null.
+ * @param {{ node: object, embedding: number[] }[]} embeddedSkills - Candidate skills.
+ * @returns {Promise<string | null>} Canonical term when found, otherwise null.
  */
-function lookupCanonicalPrereqOrObjective(_term) {
+async function lookupCanonicalPrereqOrObjective(term, embeddedSkills) {
+  if (embeddedSkills.length === 0) return null;
+
+  const queryEmbedding = await embedText(term);
+  const [bestMatch] = rankNodesBySimilarity(embeddedSkills, queryEmbedding, 1);
+
+  if (
+    bestMatch &&
+    bestMatch.similarity >= CANONICAL_SKILL_SIMILARITY_THRESHOLD
+  ) {
+    return bestMatch.node.name;
+  }
+
   return null;
 }
+
 /**
- * TODO:
- *   for each item in the given combined prereqs and objectives skill list, conduct fuzzy search on the neo4j database.
- *   If there is a result sufficiently similar enough to call a duplicate, consider the item in the db as the canonical version and replace the original item with it.
- *   Return the canonicalized list of prerequisites and objectives, including those that were not found in the database.
+ * Canonicalizes a list of prerequisite and objective terms by looking up each term in the database.
+ * For each item in the given prereqs and objectives skill list, conduct fuzzy search on the neo4j database.
+ * If there is a result sufficiently similar enough to call a duplicate, consider the item in the db as the canonical version and replace the original item with it.
+ * Return the canonicalized list of prerequisites and objectives, including those that were not found in the database.
  * @param {string[]} prerequisites - Prerequisite terms.
  * @param {string[]} objectives - Objective terms.
- * @returns {{ prerequisites: string[], objectives: string[] }} Grouped terms.
+ * @param {object} driver - Neo4j driver.
+ * @returns {Promise<{ prerequisites: string[], objectives: string[] }>} Canonicalized terms.
  */
-function canonicalizePrereqsAndObjectives(prerequisites, objectives) {
+async function canonicalizePrereqsAndObjectives(
+  prerequisites,
+  objectives,
+  driver,
+) {
+  const terms = [...new Set([...prerequisites, ...objectives])];
+
+  const embeddedSkills = await fetchNodesWithEmbeddings(driver, ["Skill"]);
+  // Resolve unique terms concurrently and store each result as [original, canonical-or-null].
+  // The map lets both lists reuse those lookups without embedding duplicate terms again.
+  const canonicalTerms = new Map(
+    await Promise.all(
+      terms.map(async (term) => [
+        term,
+        await lookupCanonicalPrereqOrObjective(term, embeddedSkills),
+      ]),
+    ),
+  );
+
   return {
-    prerequisites: prerequisites.map((term) => {
-      const canonicalTerm = lookupCanonicalPrereqOrObjective(term);
-      return canonicalTerm ?? term;
-    }),
-    objectives: objectives.map((term) => {
-      const canonicalTerm = lookupCanonicalPrereqOrObjective(term);
-      return canonicalTerm ?? term;
-    }),
+    prerequisites: prerequisites.map(
+      (term) => canonicalTerms.get(term) ?? term,
+    ),
+    objectives: objectives.map((term) => canonicalTerms.get(term) ?? term),
   };
 }
 
@@ -126,9 +162,10 @@ function validateIngestUrl(url, res) {
  *
  * @param {import("express").Request} req - Express request.
  * @param {import("express").Response} res - Express response.
+ * @param {() => Promise<object>} getDriver - Resolves the shared Neo4j driver.
  * @returns {Promise<import("express").Response>} Express response.
  */
-async function analyzeIngest(req, res) {
+async function analyzeIngest(req, res, getDriver) {
   const { url } = req.body ?? {};
 
   const validation = validateIngestUrl(url, res);
@@ -158,9 +195,15 @@ async function analyzeIngest(req, res) {
     console.log("Extracted prerequisites:", prerequisites);
     console.log("Extracted objectives:", objectives);
 
-    const canonicalized = canonicalizePrereqsAndObjectives(
+    if (typeof getDriver !== "function") {
+      throw new Error("Neo4j driver provider is unavailable.");
+    }
+    const driver = await getDriver();
+
+    const canonicalized = await canonicalizePrereqsAndObjectives(
       prerequisites,
       objectives,
+      driver,
     );
 
     return res.status(200).json({
