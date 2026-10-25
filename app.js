@@ -41,7 +41,9 @@ app.post("/chatbot/chat", neo4jService.chatbotChat);
 app.post("/chatbot/search", neo4jService.chatbotSearch);
 app.post("/chatbot/material-request", neo4jService.chatbotMaterialRequest);
 
-app.post("/ingest/analyze", ingestService.analyzeIngest);
+app.post("/ingest/analyze", (req, res) =>
+  ingestService.analyzeIngest(req, res, neo4jService.getDriver),
+);
 
 app.set("trust proxy", 1);
 

@@ -64,6 +64,9 @@ perk-api/
 
 - `GET /tree` - Retrieve the entire skill/URL knowledge graph
 - `GET /paths/:startNodeId/:targetNodeId` - Find learning paths between two nodes
+- `POST /ingest/analyze` - Analyze an allowed learning URL and canonicalize extracted skills against embedded Neo4j `Skill` nodes
+
+During ingestion analysis, embedded skills are fetched once and reused to compare all extracted prerequisite and objective terms.
 
 ### Chatbot Endpoints
 

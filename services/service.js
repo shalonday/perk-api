@@ -39,7 +39,15 @@ async function initDriver() {
   }
 }
 
-initDriver();
+const driverInitialization = initDriver();
+
+async function getDriver() {
+  await driverInitialization;
+  if (!driver) {
+    throw new Error("Neo4j driver is not initialized.");
+  }
+  return driver;
+}
 
 // Execute transactions one by one to declare necessary variables one by one
 async function readUniversalTree(req, res, next) {
@@ -438,6 +446,7 @@ async function chatbotChat(req, res) {
 }
 
 module.exports = {
+  getDriver,
   readUniversalTree,
   readPath,
   readShortestPath,
