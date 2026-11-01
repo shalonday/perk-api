@@ -1,16 +1,16 @@
 const {
   dismissCookieBanner,
   extractKhanAcademyPage,
-  extractTranscriptOrBody,
+  extractKhanAcademyTranscriptOrBody,
   isKhanAcademyUrl,
   isSupportedKhanContentUrl,
   selectTranscriptTab,
 } = require("../services/ingest/extractors/khanAcademyExtractor");
 
-describe("extractTranscriptOrBody", () => {
+describe("extractKhanAcademyTranscriptOrBody", () => {
   test("extracts visible transcript text until an end marker", () => {
-    const result = extractTranscriptOrBody(
-      "Page title\nTranscript\nFirst line\nSecond   line\nUp next:\nUnrelated text",
+    const result = extractKhanAcademyTranscriptOrBody(
+      "Page title\nVideo transcript\nFirst line\nSecond   line\nUp next:\nUnrelated text",
       "https://www.khanacademy.org/v/lesson",
     );
 
@@ -21,7 +21,7 @@ describe("extractTranscriptOrBody", () => {
   });
 
   test("falls back to the main body for a video-like page", () => {
-    const result = extractTranscriptOrBody(
+    const result = extractKhanAcademyTranscriptOrBody(
       "Lesson heading\nMain concept\nWant to join the conversation?\nDiscussion tail",
       "https://www.khanacademy.org/v/lesson",
     );
@@ -33,7 +33,7 @@ describe("extractTranscriptOrBody", () => {
   });
 
   test("uses the article-only cutoff for article URLs", () => {
-    const result = extractTranscriptOrBody(
+    const result = extractKhanAcademyTranscriptOrBody(
       "Article heading\nInstructional paragraph\nQuestions\nSkip to end of discussions\nForum tail",
       "https://www.khanacademy.org/a/article",
     );
@@ -45,8 +45,8 @@ describe("extractTranscriptOrBody", () => {
   });
 
   test("filters boilerplate and deduplicates consecutive lines", () => {
-    const result = extractTranscriptOrBody(
-      "Transcript\nSign up\nUseful line\nUseful line\nLog in\nAccept All Cookies\nAnother line\nUp next:",
+    const result = extractKhanAcademyTranscriptOrBody(
+      "Video transcript\nSign up\nUseful line\nUseful line\nLog in\nAccept All Cookies\nAnother line\nUp next:",
       "https://www.khanacademy.org/v/lesson",
     );
 
@@ -58,7 +58,10 @@ describe("extractTranscriptOrBody", () => {
 
   test("returns an empty result for empty input", () => {
     expect(
-      extractTranscriptOrBody("  \n\t", "https://www.khanacademy.org/v/lesson"),
+      extractKhanAcademyTranscriptOrBody(
+        "  \n\t",
+        "https://www.khanacademy.org/v/lesson",
+      ),
     ).toEqual({ body: "", transcriptUsed: false });
   });
 });
@@ -91,9 +94,8 @@ describe("extractKhanAcademyPage", () => {
     );
 
     expect(result).toEqual({
-      content: "Visible lesson text",
+      content: "Transcript\nVisible lesson text\nUp next:",
       title: "Lesson title",
-      transcriptUsed: true,
     });
     expect(page.locator).toHaveBeenCalledWith("main");
   });

@@ -1,6 +1,5 @@
-const { normalizeHostname } = require("../scraperConfig");
-
-const TRANSCRIPT_START_MARKERS = ["transcript"];
+const TRANSCRIPT_START_MARKERS = ["video transcript"];
+const ARTICLE_START_MARKERS = ["share link"];
 const SUMMARY_START_MARKERS = ["abouttranscript", "about transcript"];
 const TRANSCRIPT_END_MARKERS = [
   "creative commons attribution",
@@ -32,13 +31,12 @@ function cleanLine(line) {
 }
 
 /**
- * Extracts transcript or instructional body text from visible page text.
+ * Normalizes non-empty page text lines and removes consecutive duplicates.
  *
- * @param {string} text - Raw rendered visible page text.
- * @param {string} url - Page URL used to identify article pages.
- * @returns {{body: string, transcriptUsed: boolean}} Extracted body and source flag.
+ * @param {unknown} text - Raw page text, or a non-string value.
+ * @returns {string[]} Cleaned, non-empty page lines.
  */
-function extractTranscriptOrBody(text, url) {
+function getNormalizedLines(text) {
   const lines = [];
   for (const line of typeof text === "string" ? text.split(/\r?\n/) : []) {
     const cleaned = cleanLine(line);
@@ -46,28 +44,62 @@ function extractTranscriptOrBody(text, url) {
       lines.push(cleaned);
     }
   }
+  return lines;
+}
 
-  const lowerLines = lines.map((line) => line.toLowerCase());
-  const exactTranscriptIndex = lowerLines.findIndex(
-    (line) => line === "transcript",
+/**
+ * Finds where educational content begins in normalized, lowercase page lines.
+ * An exact "transcript" heading takes priority, followed by transcript markers
+ * and then summary markers. Returns -1 when no recognized starting marker exists.
+ *
+ * @param {string[]} lowerLines - Normalized page lines converted to lowercase.
+ * @returns {number} Index of the preferred content-start marker, or -1.
+ */
+function findContentStartIndex(lowerLines) {
+  const transcriptIndex = lowerLines.findIndex((line) =>
+    TRANSCRIPT_START_MARKERS.some((marker) => line.includes(marker)),
   );
-  const transcriptIndex =
-    exactTranscriptIndex >= 0
-      ? exactTranscriptIndex
-      : lowerLines.findIndex((line) =>
-          TRANSCRIPT_START_MARKERS.some((marker) => line.includes(marker)),
-        );
-  const summaryIndex = lowerLines.findIndex((line) =>
+  if (transcriptIndex >= 0) {
+    return transcriptIndex;
+  }
+
+  const articleIndex = lowerLines.findIndex((line) =>
+    ARTICLE_START_MARKERS.some((marker) => line.includes(marker)),
+  );
+  if (articleIndex >= 0) {
+    return articleIndex;
+  }
+
+  return lowerLines.findIndex((line) =>
     SUMMARY_START_MARKERS.some((marker) => line.includes(marker)),
   );
-  const startIndex = transcriptIndex >= 0 ? transcriptIndex : summaryIndex;
-  const transcriptUsed = startIndex >= 0;
-  const bodyStartIndex = transcriptUsed ? startIndex + 1 : 0;
-  const endMarkers =
-    typeof url === "string" && url.includes("/a/")
-      ? ARTICLE_ONLY_END_MARKERS
-      : TRANSCRIPT_END_MARKERS;
+}
+
+/**
+ * Selects the end markers used to stop extraction for the given page URL.
+ *
+ * @param {unknown} url - Page URL used to identify article pages.
+ * @returns {string[]} Markers that terminate body extraction.
+ */
+function getEndMarkers(url) {
+  return typeof url === "string" && url.includes("/a/")
+    ? ARTICLE_ONLY_END_MARKERS
+    : TRANSCRIPT_END_MARKERS;
+}
+
+/**
+ * Collects content lines until an end marker, excluding known boilerplate.
+ * The original lines preserve output casing while lowercase lines enable matching.
+ *
+ * @param {string[]} lines - Normalized page lines.
+ * @param {string[]} lowerLines - The same lines converted to lowercase.
+ * @param {number} startIndex - Index of the content-start marker, or -1.
+ * @param {string[]} endMarkers - Case-normalized markers that stop extraction.
+ * @returns {string[]} Extracted content lines.
+ */
+function extractBodyLines(lines, lowerLines, startIndex, endMarkers) {
   const bodyLines = [];
+  const bodyStartIndex = startIndex >= 0 ? startIndex + 1 : 0;
 
   for (let index = bodyStartIndex; index < lines.length; index += 1) {
     const lowerLine = lowerLines[index];
@@ -81,8 +113,29 @@ function extractTranscriptOrBody(text, url) {
     }
   }
 
+  return bodyLines;
+}
+
+/**
+ * Extracts transcript or instructional body text from visible page text for Khan Academy pages.
+ *
+ * @param {string} text - Raw rendered visible page text.
+ * @param {string} url - Page URL used to identify article pages.
+ * @returns {{body: string, transcriptUsed: boolean}} Extracted body and source flag.
+ */
+function extractKhanAcademyTranscriptOrBody(text, url) {
+  const lines = getNormalizedLines(text);
+  const lowerLines = lines.map((line) => line.toLowerCase());
+  const startIndex = findContentStartIndex(lowerLines);
+  const bodyLines = extractBodyLines(
+    lines,
+    lowerLines,
+    startIndex,
+    getEndMarkers(url),
+  );
+
   const body = bodyLines.join("\n").trim();
-  return body ? { body, transcriptUsed } : { body: "", transcriptUsed: false };
+  return body;
 }
 
 /**
@@ -110,8 +163,8 @@ function isKhanAcademyUrl(url) {
 
   let hostname;
   try {
-    const normalizedUrl = url instanceof URL ? url.toString() : url;
-    hostname = normalizeHostname(normalizedUrl).replace(/^www\./i, "");
+    const normalizedUrl = url instanceof URL ? url : new URL(url);
+    hostname = normalizedUrl.hostname;
   } catch {
     return false;
   }
@@ -128,7 +181,7 @@ function isKhanAcademyUrl(url) {
  * @param {string} url - Page URL used by the content extractor.
  * @returns {Promise<{content: string, title: string, transcriptUsed: boolean}>} Extracted page data.
  */
-async function extractKhanAcademyPage(page, url) {
+async function extractKhanAcademyPage(page) {
   await dismissCookieBanner(page);
   await selectTranscriptTab(page);
 
@@ -149,11 +202,9 @@ async function extractKhanAcademyPage(page, url) {
       .catch(() => "");
   }
 
-  const { body, transcriptUsed } = extractTranscriptOrBody(rawText, url);
   return {
-    content: body,
+    content: rawText,
     title: cleanLine(title),
-    transcriptUsed,
   };
 }
 
@@ -205,11 +256,20 @@ async function selectTranscriptTab(page) {
   }
 }
 
+const __testOnly = Object.freeze({
+  getNormalizedLines,
+  cleanLine,
+  findContentStartIndex,
+  getEndMarkers,
+  extractBodyLines,
+});
+
 module.exports = {
   dismissCookieBanner,
   extractKhanAcademyPage,
-  extractTranscriptOrBody,
+  extractKhanAcademyTranscriptOrBody,
   isKhanAcademyUrl,
   isSupportedKhanContentUrl,
   selectTranscriptTab,
+  __testOnly,
 };
